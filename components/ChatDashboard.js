@@ -286,7 +286,7 @@ export default function ChatDashboard() {
               {loadingChats ? (
                 <Skeleton className="w-full h-48" />
               ) : (
-                <ScrollArea className="h-96">
+                <ScrollArea className="h-[90%]">
                   {chats.length > 0 ? (
                     chats.map((chat) => {
                       const otherParticipant = getOtherParticipant(chat);
