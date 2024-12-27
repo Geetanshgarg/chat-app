@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import Image from "next/image";
 import {
   Form,
   FormControl,
@@ -25,6 +26,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import ImageUpload from '@/components/ImageUpload';
+import UploadDialog from '@/components/UploadDialog';
 
 const profileFormSchema = z.object({
   firstName: z.string().min(1, { message: "First name is required." }),
@@ -37,6 +40,7 @@ const profileFormSchema = z.object({
 export default function ProfileSettings() {
   const { data: session } = useSession();
   const [isLoading, setIsLoading] = useState(true);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
   
   const [profile, setProfile] = useState({
     firstName: "",
@@ -44,6 +48,7 @@ export default function ProfileSettings() {
     bio: "",
     phone: "",
     location: "",
+    image: "",
   });
 
   const form = useForm({
@@ -98,6 +103,25 @@ export default function ProfileSettings() {
     }
   };
 
+  const handleImageUpload = async (imageUrl) => {
+    try {
+      const res = await fetch("/api/settings/profile", {
+        method: "PATCH",
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ image: imageUrl }),
+      });
+
+      if (!res.ok) throw new Error();
+
+      setProfile(prev => ({ ...prev, image: imageUrl }));
+      toast.success('Profile picture updated');
+    } catch (error) {
+      toast.error('Failed to update profile picture');
+    }
+  };
+
   const handleSubmit = (data) => {
     updateProfile(data);
   };
@@ -110,6 +134,32 @@ export default function ProfileSettings() {
           Manage your profile information and preferences
         </p>
       </div>
+
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Profile Picture</h3>
+        <div className="flex items-center gap-4">
+          {profile.image && (
+            <div className="relative w-20 h-20">
+              <Image
+                src={profile.image}
+                alt="Profile"
+                fill
+                className="rounded-full object-cover"
+              />
+            </div>
+          )}
+          <Button onClick={() => setShowUploadDialog(true)}>
+            Change Picture
+          </Button>
+        </div>
+      </div>
+
+      <UploadDialog
+        isOpen={showUploadDialog}
+        onClose={() => setShowUploadDialog(false)}
+        onUploadComplete={handleImageUpload}
+        currentImage={profile.image}
+      />
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
@@ -152,9 +202,6 @@ export default function ProfileSettings() {
                     {...field}
                   />
                 </FormControl>
-                <FormDescription>
-                  You can <span>@mention</span> other users and organizations to link to them.
-                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

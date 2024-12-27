@@ -10,8 +10,14 @@ export async function GET(request, { params }) {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const { username } = params;
+  const user = await User.findOne({ username: username });
+  if (!user) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+  const userId = user._id;
 
-  const { userId } = params;
+
 
   try {
     await DbConnect();

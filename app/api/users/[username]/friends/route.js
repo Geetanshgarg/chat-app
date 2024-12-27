@@ -11,7 +11,12 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { userId } = params;
+  const { username } = params;
+  const user = await User.findOne({ username: username });
+  if (!user) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+  const userId = user._id;
 
   try {
     await DbConnect();
