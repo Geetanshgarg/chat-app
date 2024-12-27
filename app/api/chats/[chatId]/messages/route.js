@@ -20,30 +20,11 @@ export async function GET(request, props) {
   try {
     await DbConnect();
 
-    const chat = await Chat.findById(chatId)
-      .populate({
-        path: "messages",
-        populate: { path: "sender", select: "firstName lastName image" },
-      })
-      .populate("participants", "-password");
+    const messages = await Message.find({ conversation: chatId })
+      .populate("sender", "firstName lastName image _id")
+      .sort({ createdAt: 1 });
 
-    if (!chat) {
-      return NextResponse.json({ error: "Chat not found." }, { status: 404 });
-    }
-
-    // Check if the user is a member of the chat
-    const isMember = chat.participants.some(
-      (member) => member._id.toString() === session.user.id
-    );
-
-    if (!isMember) {
-      return NextResponse.json(
-        { error: "You are not a member of this chat." },
-        { status: 403 }
-      );
-    }
-
-    return NextResponse.json(chat.messages, { status: 200 });
+    return NextResponse.json(messages, { status: 200 });
   } catch (error) {
     console.error("Error fetching messages:", error);
     return NextResponse.json(
@@ -61,74 +42,67 @@ export async function POST(request, props) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { chatId } = params; // Ensure correct destructuring
-  console.log(`POST request received for chatId: ${chatId}`); // Added log
+  const { chatId } = params;
 
   try {
+    await DbConnect();
     const { content } = await request.json();
 
-    if (!content || !content.trim()) {
+    if (!content?.trim()) {
       return NextResponse.json(
-        { error: "Message content cannot be empty." },
+        { error: "Message content cannot be empty" },
         { status: 400 }
       );
     }
 
-    await DbConnect();
-
-    const chat = await Chat.findById(chatId).populate("participants", "-password");
+    // First validate the chat exists and user is a participant
+    const chat = await Chat.findById(chatId)
+      .populate("participants", "firstName lastName image username");
 
     if (!chat) {
-      return NextResponse.json({ error: "Chat not found." }, { status: 404 });
+      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
     }
 
-    // Check if the user is a member of the chat
     const isMember = chat.participants.some(
-      (member) => member._id.toString() === session.user.id
+      p => p._id.toString() === session.user.id
     );
 
     if (!isMember) {
       return NextResponse.json(
-        { error: "You are not a member of this chat." },
+        { error: "Not authorized to send messages in this chat" },
         { status: 403 }
       );
     }
 
-    // Create a new message
-    const message = await Message.create({
+    // Create and save the message with correct field names
+    const message = new Message({
+      text: content.trim(), // Changed from content to text
+      conversation: chatId, // Changed from chat to conversation
       sender: session.user.id,
-      chat: chatId,
-      content: content.trim(),
-      createdAt: new Date(),
+      readBy: [session.user.id]
     });
 
-    // Update chat's last message
+    await message.save();
+    await message.populate("sender", "firstName lastName image username");
+
+    // Update the chat's lastMessage
     chat.lastMessage = message._id;
     chat.messages.push(message._id);
     await chat.save();
 
-    // Populate sender details
-    await message.populate("sender", "firstName lastName image");
+    // Return populated message
+    const populatedMessage = await Message.findById(message._id)
+      .populate("sender", "firstName lastName image username");
 
-    // Create a chat notification for other participants
-    const otherParticipants = chat.participants.filter(
-      (participant) => participant._id.toString() !== session.user.id
-    );
-
-    await ChatNotification.create(
-      otherParticipants.map((participant) => ({
-        user: participant._id,
-        chatId: chat._id,
-        sender: session.user.id,
-        messageSnippet: content.trim().substring(0, 50),
-      }))
-    );
-
-    return NextResponse.json({ message }, { status: 201 });
+    return NextResponse.json(populatedMessage, { status: 201 });
   } catch (error) {
-    console.error("Error sending message:", error);
+    console.error("Message creation error:", error);
     return NextResponse.json(
-      { error: "Failed to send message." },
+      { 
+        error: "Failed to send message", 
+        details: error.message,
+        validationErrors: error.errors 
+      },
       { status: 500 }
     );
   }

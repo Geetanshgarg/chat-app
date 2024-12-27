@@ -1,144 +1,126 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { useSession } from 'next-auth/react';
-import { useRouter, useParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import Image from 'next/image';
-import { toast } from 'sonner';
+import { useState, useEffect, useRef } from "react";
+import { useSession } from "next-auth/react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import Image from "next/image";
 
-export default function ChatWindow({ chatId }) { // Accept chatId as a prop
-  console.log(`ChatWindow component rendered with chatId: ${chatId}`); // Added log
-  const { data: session, status } = useSession();
-  const router = useRouter();
+export default function ChatWindow({ chatId }) {
+  const { data: session } = useSession();
   const [messages, setMessages] = useState([]);
-  const [currentMessage, setCurrentMessage] = useState('');
-  const [loadingMessages, setLoadingMessages] = useState(true);
-  const messagesEndRef = useRef(null);
+  const [newMessage, setNewMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const scrollRef = useRef(null);
 
-  
-  const fetchMessages = async (chatId) => {
+  useEffect(() => {
+    if (chatId) {
+      fetchMessages();
+      const interval = setInterval(fetchMessages, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [chatId]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const fetchMessages = async () => {
     try {
       const res = await fetch(`/api/chats/${chatId}/messages`);
-      if (!res.ok) throw new Error('Failed to fetch messages');
+      if (!res.ok) throw new Error("Failed to fetch messages");
       const data = await res.json();
       setMessages(data);
-      scrollToBottom();
     } catch (error) {
-      console.error('Error fetching messages:', error);
-      toast.error('Failed to load messages.');
+      console.error("Error fetching messages:", error);
     } finally {
-      setLoadingMessages(false);
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (chatId && session?.user?.id) {
-      fetchMessages(chatId);
-      // Optionally set up real-time updates with WebSockets or SSE
-    }
-  }, [chatId, session]);
-
-  const sendMessage = async () => {
-    if (!currentMessage.trim()) return;
+  const sendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
 
     try {
       const res = await fetch(`/api/chats/${chatId}/messages`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ content: currentMessage }),
+        body: JSON.stringify({ content: newMessage }),
       });
 
-      const data = await res.json();
-
-      if (res.ok) {
-        setMessages([...messages, data.message]);
-        setCurrentMessage('');
-        scrollToBottom();
-        // Optionally notify other participants via WebSockets
-      } else {
-        throw new Error(data.message || 'Failed to send message.');
-      }
+      if (!res.ok) throw new Error("Failed to send message");
+      
+      const message = await res.json();
+      setMessages((prev) => [...prev, message]);
+      setNewMessage("");
     } catch (error) {
-      console.error('Error sending message:', error);
-      toast.error(error.message || 'Failed to send message.');
+      console.error("Error sending message:", error);
     }
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  if (status === 'loading') {
-    return <p>Loading...</p>;
-  }
-
-  if (!session?.user) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-lg">You need to be authenticated to view this chat.</p>
-      </div>
-    );
+  if (loading) {
+    return <Skeleton className="w-full h-[600px]" />;
   }
 
   return (
-    <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between p-4 border-b">
-            <Button onClick={() => router.back()}>Back</Button>
-            <h2 className="text-lg font-semibold">Chat</h2> 
-        </div>
-      {/* Messages Section */}
-      <div className="flex-1 overflow-auto p-4">
-        {loadingMessages ? (
-          <p>Loading messages...</p>
-        ) : (
-          <ScrollArea>
-            {messages.length > 0 ? (
-              messages.map((msg) => (
-                <div key={msg._id} className={`flex ${msg.sender._id === session.user.id ? 'justify-end' : 'justify-start'} mb-4`}>
-                  {msg.sender._id !== session.user.id && (
-                    <Image
-                      src={msg.sender.image || '/default-avatar.png'}
-                      alt={`${msg.sender.firstName} ${msg.sender.lastName}`}
-                      width={40}
-                      height={40}
-                      className="rounded-full"
-                    />
-                  )}
-                  <div className={`ml-2 ${msg.sender._id === session.user.id ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'} p-2 rounded-lg max-w-xs`}>
-                    <p>{msg.content}</p>
-                    <span className="text-xs text-gray-600">{new Date(msg.createdAt).toLocaleTimeString()}</span>
-                  </div>
+    <Card className="h-[90vh]">
+      <CardHeader className="border-b pb-4">
+        <h2 className="text-xl font-semibold">Chat</h2>
+      </CardHeader>
+      <CardContent>
+        <ScrollArea className="h-[calc(90vh-180px)]" ref={scrollRef}>
+          <div className="flex flex-col gap-4 p-4">
+            {messages.map((message) => (
+              <div
+                key={message._id}
+                className={`flex gap-2 ${
+                  message.sender._id === session?.user?.id
+                    ? "justify-end"
+                    : "justify-start"
+                }`}
+              >
+                {message.sender._id !== session?.user?.id && (
+                  <Image
+                    src={message.sender.image || "/default-avatar.png"}
+                    alt={message.sender.firstName}
+                    width={32}
+                    height={32}
+                    className="rounded-full"
+                  />
+                )}
+                <div
+                  className={`p-3 rounded-lg max-w-[70%] ${
+                    message.sender._id === session?.user?.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted"
+                  }`}
+                >
+                  <p>{message.text}</p>
                 </div>
-              ))
-            ) : (
-              <p className="text-center text-gray-500">No messages yet.</p>
-            )}
-            <div ref={messagesEndRef} />
-          </ScrollArea>
-        )}
-      </div>
-
-      {/* Input Section */}
-      <div className="p-4 border-t">
-        <div className="flex space-x-2">
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </CardContent>
+      <CardFooter>
+        <form onSubmit={sendMessage} className="flex w-full gap-2">
           <Input
-            type="text"
-            placeholder="Type your message..."
-            value={currentMessage}
-            onChange={(e) => setCurrentMessage(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') sendMessage(); }}
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type a message..."
             className="flex-1"
           />
-          <Button onClick={sendMessage} variant="primary">
-            Send
-          </Button>
-        </div>
-      </div>
-    </div>
+          <Button type="submit">Send</Button>
+        </form>
+      </CardFooter>
+    </Card>
   );
 }

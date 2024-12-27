@@ -1,30 +1,31 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import Link from 'next/link';
-import Image from 'next/image';
-import { toast } from 'sonner';
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
-import ChatWindow from './ChatWindow'; // Import ChatWindow component
-import Modal from '@/components/ui/Modal'; // Ensure Modal is correctly imported
-import GroupChatForm from '@/components/ui/GroupChatForm'; 
-// Import GroupChatForm
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import Image from "next/image";
+import { toast } from "sonner";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import ChatWindow from "./ChatWindow";
+
 export default function ChatDashboard() {
   const { data: session, status } = useSession();
   const [chats, setChats] = useState([]);
   const [friends, setFriends] = useState([]);
   const [loadingChats, setLoadingChats] = useState(true);
-  const [loadingFriends, setLoadingFriends] = useState(true);
-  const [selectedChat, setSelectedChat] = useState(null); // Add selectedChat state
-  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false); // Add isGroupModalOpen state
-
-  const openGroupModal = () => setIsGroupModalOpen(true);
-  const closeGroupModal = () => setIsGroupModalOpen(false);
+  const [selectedChat, setSelectedChat] = useState(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (session?.user?.username) {
@@ -36,12 +37,12 @@ export default function ChatDashboard() {
   const fetchChats = async (username) => {
     try {
       const res = await fetch(`/api/users/${username}/chats`);
-      if (!res.ok) throw new Error('Failed to fetch chats');
+      if (!res.ok) throw new Error("Failed to fetch chats");
       const data = await res.json();
       setChats(data);
     } catch (error) {
-      console.error('Error fetching chats:', error);
-      toast.error('Failed to load chats.');
+      console.error("Error fetching chats:", error);
+      toast.error("Failed to load chats.");
     } finally {
       setLoadingChats(false);
     }
@@ -50,28 +51,26 @@ export default function ChatDashboard() {
   const fetchFriends = async (username) => {
     try {
       const res = await fetch(`/api/users/${username}/friends`);
-      if (!res.ok) throw new Error('Failed to fetch friends');
+      if (!res.ok) throw new Error("Failed to fetch friends");
       const data = await res.json();
       setFriends(data);
     } catch (error) {
-      console.error('Error fetching friends:', error);
-      toast.error('Failed to load friends.');
-    } finally {
-      setLoadingFriends(false);
+      console.error("Error fetching friends:", error);
+      toast.error("Failed to load friends.");
     }
   };
 
   const createChat = async (friendUsername) => {
     try {
-      const res = await fetch('/api/chats/create', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.accessToken}`,
+      const res = await fetch("/api/chats/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.accessToken}`,
         },
-        body: JSON.stringify({ 
-          username: session.user.username, 
-          friendUsername 
+        body: JSON.stringify({
+          username: session.user.username,
+          friendUsername,
         }),
       });
 
@@ -79,29 +78,29 @@ export default function ChatDashboard() {
 
       if (res.ok) {
         setChats([...chats, data.chat]);
-        toast.success('Chat created successfully.');
+        toast.success("Chat created successfully.");
       } else {
-        throw new Error(data.error || 'Failed to create chat.');
+        throw new Error(data.error || "Failed to create chat.");
       }
     } catch (error) {
-      console.error('Error creating chat:', error);
-      toast.error(error.message || 'Failed to create chat.');
+      console.error("Error creating chat:", error);
+      toast.error(error.message || "Failed to create chat.");
     }
   };
 
   const createGroupChat = async (groupName, selectedFriends) => {
     try {
-      const res = await fetch('/api/chats/create', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.accessToken}`,
+      const res = await fetch("/api/chats/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.accessToken}`,
         },
-        body: JSON.stringify({ 
-          userId: session.user.id, 
-          friendId: selectedFriends, 
-          isGroup: true, 
-          groupName 
+        body: JSON.stringify({
+          userId: session.user.id,
+          friendId: selectedFriends,
+          isGroup: true,
+          groupName,
         }),
       });
 
@@ -109,61 +108,100 @@ export default function ChatDashboard() {
 
       if (res.ok) {
         setChats([...chats, data.chat]);
-        toast.success('Group chat created successfully.');
-        closeGroupModal();
+        toast.success("Group chat created successfully.");
       } else {
-        throw new Error(data.message || 'Failed to create group chat.');
+        throw new Error(data.message || "Failed to create group chat.");
       }
     } catch (error) {
-      console.error('Error creating group chat:', error);
-      toast.error(error.message || 'Failed to create group chat.');
+      console.error("Error creating group chat:", error);
+      toast.error(error.message || "Failed to create group chat.");
     }
   };
 
-  const handleFriendClick = async (friendId) => {
-    // Find existing chat with the friend
-    const existingChat = chats.find(chat => 
-      !chat.isGroup && chat.participants.some(participant => participant._id === friendId)
-    );
+  const handleFriendClick = async (friend) => {
+    try {
+      // Find existing chat first
+      const existingChat = chats.find(
+        (chat) =>
+          !chat.isGroup &&
+          chat.participants.some(
+            (participant) => participant.username === friend.username
+          )
+      );
 
-    if (existingChat) {
-      setSelectedChat(existingChat);
-    } else {
-      // Create a new chat if it doesn't exist
-      try {
-        const res = await fetch('/api/chats/create', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.accessToken}`,
-          },
-          body: JSON.stringify({ userId: session.user.id, friendId }),
-        });
+      if (existingChat) {
+        setSelectedChat(existingChat);
+        setOpen(false);
+        return;
+      }
 
-        const data = await res.json();
+      // Create new chat only if it doesn't exist
+      const createRes = await fetch("/api/chats/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.accessToken}`,
+        },
+        body: JSON.stringify({
+          username: session.user.username,
+          friendUsername: friend.username,
+        }),
+      });
 
-        if (res.ok) {
-          setChats([...chats, data.chat]);
-          setSelectedChat(data.chat);
-          toast.success('Chat created successfully.');
-        } else {
-          throw new Error(data.message || 'Failed to create chat.');
+      const data = await createRes.json();
+
+      if (createRes.ok) {
+        // Only add to chats if it's truly new
+        if (!chats.some(chat => chat._id === data.chat._id)) {
+          setChats(prev => [...prev, data.chat]);
         }
-      } catch (error) {
-        console.error('Error creating chat:', error);
-        toast.error(error.message || 'Failed to create chat.');
+        setSelectedChat(data.chat);
+        setOpen(false);
+        toast.success("Chat created successfully.");
+      } else {
+        throw new Error(data.message || "Failed to create chat.");
+      }
+    } catch (error) {
+      console.error("Error handling friend click:", error);
+      toast.error(error.message || "Failed to handle chat action.");
+    }
+  };
+
+  const handleCommand = async (type, data) => {
+    if (type === 'friend') {
+      await handleFriendClick(data);
+    } else if (type === 'group') {
+      // Only create group if it doesn't exist
+      const existingGroup = chats.find(
+        (chat) => chat.isGroup && chat.name === data.name
+      );
+      
+      if (!existingGroup) {
+        await createGroupChat(data.name, data.members);
+      } else {
+        setSelectedChat(existingGroup);
       }
     }
+    setOpen(false);
   };
 
-  if (status === 'loading') {
+  const getOtherParticipant = (chat) => {
+    if (chat.isGroup) return { firstName: chat.name };
+    return chat.participants.find(
+      (participant) => participant.username !== session.user.username
+    );
+  };
+
+  if (status === "loading") {
     return <Skeleton className="w-full h-48" />;
   }
 
   if (!session?.user) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-lg">You need to be authenticated to view the chat dashboard.</p>
+        <p className="text-lg">
+          You need to be authenticated to view the chat dashboard.
+        </p>
       </div>
     );
   }
@@ -172,37 +210,65 @@ export default function ChatDashboard() {
     <>
       <div className="flex space-x-4 h-screen">
         <div className="w-1/3">
-          {/* Friends Section */}
           <Card className="h-[90%]">
-            <CardHeader>
-              <CardTitle>Your Friends</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Active Chats</CardTitle>
+              <Button 
+                variant="outline" 
+                onClick={() => setOpen(true)}
+                className="ml-2"
+              >
+                New Chat
+              </Button>
             </CardHeader>
             <CardContent>
-              {loadingFriends ? (
+              {loadingChats ? (
                 <Skeleton className="w-full h-48" />
               ) : (
                 <ScrollArea className="h-96">
-                  {friends.length > 0 ? (
-                    friends.map((friend) => (
-                      <div
-                        key={friend._id}
-                        className="flex items-center flex-row rounded-sm border-b my-2 gap-2 p-2 hover:border cursor-pointer"
-                        onClick={() => handleFriendClick(friend._id)} // Set selectedChat on click
-                      >
-                          <Image
-                            src={friend.image || "/default-avatar.png"}
-                            alt={`${friend.firstName} ${friend.lastName}`}
-                            width={40}
-                            height={40}
-                            className="rounded-full"
+                  {chats.length > 0 ? (
+                    chats.map((chat) => {
+                      const otherParticipant = getOtherParticipant(chat);
+                      return (
+                        <div
+                          key={chat._id}
+                          className={`flex items-center flex-row rounded-sm border-b my-2 gap-2 p-2 hover:border cursor-pointer ${
+                            selectedChat?._id === chat._id ? 'bg-secondary' : ''
+                          }`}
+                          onClick={() => setSelectedChat(chat)}
+                        >
+                          {chat.isGroup ? (
+                            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white">
+                              {chat.name?.charAt(0)}
+                            </div>
+                          ) : (
+                            <Image
+                              src={otherParticipant?.image || "/default-avatar.png"}
+                              alt={otherParticipant?.firstName}
+                              width={40}
+                              height={40}
+                              className="rounded-full"
                             />
-                          <span>{`${friend.firstName} ${friend.lastName}`}</span>
-                      </div>
-                    ))
+                          )}
+                          <div className="flex flex-col">
+                            <span className="font-medium">
+                              {chat.isGroup 
+                                ? chat.name 
+                                : `${otherParticipant?.firstName} ${otherParticipant?.lastName}`}
+                            </span>
+                            <span className="text-sm text-muted-foreground">
+                              {chat.lastMessage?.content || 'No messages yet'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
                   ) : (
-                    <Alert variant="destructive">
-                      <AlertTitle>No Friends</AlertTitle>
-                      <AlertDescription>You have no friends to chat with.</AlertDescription>
+                    <Alert>
+                      <AlertTitle>No Chats</AlertTitle>
+                      <AlertDescription>
+                        Start a new chat using the button above.
+                      </AlertDescription>
                     </Alert>
                   )}
                 </ScrollArea>
@@ -211,33 +277,49 @@ export default function ChatDashboard() {
           </Card>
         </div>
 
-      {/* Group Chat Modal */}
-        {/* Chat Window Section */}
         <div className="w-2/3">
           {selectedChat ? (
             <ChatWindow chatId={selectedChat._id} />
           ) : (
             <div className="flex items-center justify-center h-full">
-              <p className="text-lg text-gray-500">Select a chat to start messaging.</p>
+              <p className="text-lg text-gray-500">
+                Select a chat to start messaging.
+              </p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Floating Group Chat Button */}
-      <button
-        className="fixed bottom-4 right-4 bg-blue-500 text-white p-4 rounded-full shadow-lg"
-        onClick={openGroupModal}
-      >
-        +
-      </button>
-
-      {/* Group Chat Modal */}
-      {isGroupModalOpen && (
-        <Modal onClose={closeGroupModal}>
-          <GroupChatForm onSubmit={createGroupChat} onCancel={closeGroupModal} friends={friends} />
-        </Modal>
-      )}
+      <CommandDialog open={open} onOpenChange={setOpen}>
+        <CommandInput placeholder="Search people or create a group..." />
+        <CommandList>
+          <CommandEmpty>No results found.</CommandEmpty>
+          <CommandGroup heading="Friends">
+            {friends.map((friend) => (
+              <CommandItem
+                key={friend._id}
+                onSelect={() => handleCommand('friend', friend)}
+              >
+                <Image
+                  src={friend.image || "/default-avatar.png"}
+                  alt={friend.firstName}
+                  width={24}
+                  height={24}
+                  className="rounded-full mr-2"
+                />
+                {friend.firstName} {friend.lastName}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+          <CommandGroup heading="Actions">
+            <CommandItem
+              onSelect={() => handleCommand('group', { isNewGroup: true })}
+            >
+              Create New Group
+            </CommandItem>
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
     </>
   );
 }
