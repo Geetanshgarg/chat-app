@@ -35,12 +35,11 @@ export default function ChatDashboard() {
 
   const fetchChats = async (userId) => {
     try {
-      const res = await fetch(`/api/chats/${userId}`);
+      const res = await fetch(`/api/users/${userId}/chats`);
       if (!res.ok) throw new Error('Failed to fetch chats');
       const data = await res.json();
       setChats(data);
     } catch (error) {
-      console.error('Error fetching chats:', error);
       toast.error('Failed to load chats.');
     } finally {
       setLoadingChats(false);
@@ -49,12 +48,11 @@ export default function ChatDashboard() {
 
   const fetchFriends = async (userId) => {
     try {
-      const res = await fetch(`/api/friends/${userId}`);
+      const res = await fetch(`/api/users/${userId}/friends`);
       if (!res.ok) throw new Error('Failed to fetch friends');
       const data = await res.json();
       setFriends(data);
     } catch (error) {
-      console.error('Error fetching friends:', error);
       toast.error('Failed to load friends.');
     } finally {
       setLoadingFriends(false);
@@ -125,7 +123,6 @@ export default function ChatDashboard() {
     );
 
     if (existingChat) {
-      console.log(`Existing chat found: ${existingChat._id}`); // Added log
       setSelectedChat(existingChat);
     } else {
       // Create a new chat if it doesn't exist
@@ -142,7 +139,6 @@ export default function ChatDashboard() {
         const data = await res.json();
 
         if (res.ok) {
-          console.log(`New chat created with ID: ${data.chat._id}`); // Added log
           setChats([...chats, data.chat]);
           setSelectedChat(data.chat);
           toast.success('Chat created successfully.');
@@ -186,7 +182,7 @@ export default function ChatDashboard() {
                     friends.map((friend) => (
                       <div
                         key={friend._id}
-                        className="flex items-center gap-2 p-2 border-b cursor-pointer"
+                        className="flex items-center flex-row rounded-sm border-b my-2 gap-2 p-2 hover:border cursor-pointer"
                         onClick={() => handleFriendClick(friend._id)} // Set selectedChat on click
                       >
                           <Image

@@ -9,7 +9,7 @@ const UserSchema = new mongoose.Schema({
     type: String, 
     unique: true, 
     sparse: true,
-    required: false // Make username optional
+    required: true 
   },
   slug: {
     type: String,

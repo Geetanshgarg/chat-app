@@ -18,13 +18,7 @@ export default function ChatWindow({ chatId }) { // Accept chatId as a prop
   const [loadingMessages, setLoadingMessages] = useState(true);
   const messagesEndRef = useRef(null);
 
-  useEffect(() => {
-    if (chatId && session?.user?.id) {
-      fetchMessages(chatId);
-      // Optionally set up real-time updates with WebSockets or SSE
-    }
-  }, [chatId, session]);
-
+  
   const fetchMessages = async (chatId) => {
     try {
       const res = await fetch(`/api/chats/${chatId}/messages`);
@@ -39,6 +33,13 @@ export default function ChatWindow({ chatId }) { // Accept chatId as a prop
       setLoadingMessages(false);
     }
   };
+
+  useEffect(() => {
+    if (chatId && session?.user?.id) {
+      fetchMessages(chatId);
+      // Optionally set up real-time updates with WebSockets or SSE
+    }
+  }, [chatId, session]);
 
   const sendMessage = async () => {
     if (!currentMessage.trim()) return;
@@ -86,6 +87,10 @@ export default function ChatWindow({ chatId }) { // Accept chatId as a prop
 
   return (
     <div className="flex flex-col h-full">
+        <div className="flex items-center justify-between p-4 border-b">
+            <Button onClick={() => router.back()}>Back</Button>
+            <h2 className="text-lg font-semibold">Chat</h2> 
+        </div>
       {/* Messages Section */}
       <div className="flex-1 overflow-auto p-4">
         {loadingMessages ? (

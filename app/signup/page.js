@@ -11,16 +11,34 @@ import { Card, CardDescription, CardHeader, CardTitle, CardFooter, CardContent }
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import SetUsernameDialog from '@/components/set-username-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
+const schema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
 
 export default function RegisterPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { handleSubmit, register } = useForm();
+  const { handleSubmit, register, formState: { errors } } = useForm({
+    resolver: zodResolver(schema),
+  });
   const [errorMessage, setErrorMessage] = useState('');
+  const [showUsernameDialog, setShowUsernameDialog] = useState(false);
+  const [registrationData, setRegistrationData] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showError, setShowError] = useState(false);
+  const [showEmailError, setShowEmailError] = useState(false);
 
   useEffect(() => {
     if (status === 'authenticated') {
-      router.push('/dashboard');
+      router.push(`/${session.user.username}`);
     }
   }, [status, router]);
 
@@ -41,65 +59,114 @@ export default function RegisterPage() {
   }
 
   const onSubmit = async (data) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setErrorMessage('');
+
+    try {
+      const emailCheck = await fetch(`/api/check-email?email=${data.email}`);
+      const emailResult = await emailCheck.json();
+
+      if (!emailResult.available) {
+        setErrorMessage('Email already registered');
+        setShowEmailError(true);
+        return;
+      }
+
+      setRegistrationData(data);
+      setShowUsernameDialog(true);
+    } catch (error) {
+      console.error('Registration error:', error);
+      setErrorMessage('An unexpected error occurred');
+      setShowEmailError(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUsernameSubmit = async (username) => {
+    if (isSubmitting || !registrationData) return;
+    setIsSubmitting(true);
+    setErrorMessage('');
+
     try {
       const response = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...registrationData,
+          username
+        }),
       });
 
       const result = await response.json();
 
       if (response.ok) {
-        // Automatically sign in the user after successful registration
-        const signInResponse = await signIn('credentials', {
+        setShowUsernameDialog(false);
+        // Attempt to sign in automatically
+        const signInResult = await signIn('credentials', {
           redirect: false,
-          email: data.email,
-          password: data.password,
+          email: registrationData.email,
+          password: registrationData.password,
         });
 
-        if (signInResponse?.ok) {
-          router.push('/set-username');
+        if (signInResult?.ok) {
+          router.push('/dashboard');
         } else {
-          setErrorMessage('Registration successful, but auto-login failed. Please log in manually.');
           router.push('/login');
         }
       } else {
-        setErrorMessage(result.message || 'Registration failed. Please try again.');
+        handleRegistrationError(result.message || 'Registration failed. Please try again.');
       }
     } catch (error) {
       console.error('Registration error:', error);
-      setErrorMessage('An unexpected error occurred.');
+      handleRegistrationError('An unexpected error occurred.');
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const handleErrorDismiss = () => {
+    setShowError(false);
+    setErrorMessage('');
+    // Optional: Navigate or reset form state
+  };
+
+  const handleRegistrationError = (message) => {
+    setErrorMessage(message);
+    setShowError(true);
+  };
+
+  const handleEmailErrorDismiss = () => {
+    setShowEmailError(false);
+    router.push('/login');
   };
 
   return (
     <div className="flex max-h-screen w-full items-center justify-center p-6 md:p-10">
       <div className="w-full max-w-sm">
-        {errorMessage && (
-          <p className="text-red-500 mb-4">{errorMessage}</p>
-        )}
-        <Card className="p-4 flex flex-col gap-6 my-6 ">
-          <CardHeader className="flex ">
-            <CardTitle className="text-center ">Register</CardTitle>
-            <CardDescription className="text-center pt-3">Register your new account</CardDescription>
+        <Card className="flex flex-col gap-4">
+          <CardHeader className="text-center">
+            <CardTitle className="text-card-foreground text-2xl">Register</CardTitle>
+            <CardDescription className="text-accent-foreground">Register your new account</CardDescription>
           </CardHeader>
-          <Separator className="p-0"/>
+          <Separator className="my-4"/>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="flex flex-row gap-4">
-                <div className="flex flex-col ">
-                <Label htmlFor="firstName" >
-                  First Name
-                </Label>
-                <Input id="firstName" {...register("firstName", { required: true })} />
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="firstName" >
+                    First Name
+                  </Label>
+                  <Input id="firstName" {...register("firstName", { required: true })} />
+                  {errors.firstName && <p className="text-destructive">{errors.firstName.message}</p>}
                 </div>
-                <div className="flex flex-col">
-                <Label htmlFor="lastName" >
-                  Last Name
-                </Label>
-                <Input id="lastName" {...register("lastName", { required: true })} />
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="lastName" >
+                    Last Name
+                  </Label>
+                  <Input id="lastName" {...register("lastName", { required: true })} />
+                  {errors.lastName && <p className="text-destructive">{errors.lastName.message}</p>}
                 </div>
               </div>
               <div>
@@ -107,15 +174,21 @@ export default function RegisterPage() {
                   Email
                 </Label>
                 <Input id="email" type="email" {...register("email", { required: true })} />
+                {errors.email && <p className=" text-destructive">{errors.email.message}</p>}
               </div>
               <div>
                 <Label htmlFor="password" >
                   Password
                 </Label>
                 <Input id="password" type="password" {...register("password", { required: true })} />
+                {errors.password && <p className="text-destructive">{errors.password.message}</p>}
               </div>
-              <Button type="submit" className="w-full">
-                Register
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Processing...' : 'Register'}
               </Button>
             </form>
             <CardFooter className="text-center">
@@ -126,6 +199,43 @@ export default function RegisterPage() {
           </CardContent>
         </Card>
       </div>
+
+      {registrationData && (
+        <SetUsernameDialog
+          isOpen={showUsernameDialog}
+          onClose={() => {
+            setShowUsernameDialog(false);
+            setRegistrationData(null);
+          }}
+          onSubmit={handleUsernameSubmit}
+        />
+      )}
+
+      <AlertDialog open={showEmailError} onOpenChange={setShowEmailError}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Email Already Registered</AlertDialogTitle>
+            <AlertDialogDescription>{errorMessage}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={handleEmailErrorDismiss}>
+              Go to Login
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showError} onOpenChange={setShowError}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Error</AlertDialogTitle>
+            <AlertDialogDescription>{errorMessage}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={handleErrorDismiss}>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
