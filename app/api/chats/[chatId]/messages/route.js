@@ -6,7 +6,8 @@ import Message from "@/models/Message";
 import { NextResponse } from "next/server";
 import ChatNotification from '@/models/ChatNotification'; // Import ChatNotification model
 
-export async function GET(request, { params }) {
+export async function GET(request, props) {
+  const params = await props.params;
   const session = await getServerSession(authOptions);
 
   if (!session) {
@@ -52,7 +53,8 @@ export async function GET(request, { params }) {
   }
 }
 
-export async function POST(request, { params }) {
+export async function POST(request, props) {
+  const params = await props.params;
   const session = await getServerSession(authOptions);
 
   if (!session) {

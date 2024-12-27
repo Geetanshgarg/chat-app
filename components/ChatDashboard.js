@@ -27,40 +27,41 @@ export default function ChatDashboard() {
   const closeGroupModal = () => setIsGroupModalOpen(false);
 
   useEffect(() => {
-    if (session?.user?.id) {
-      fetchChats(session.user.id);
-      fetchFriends(session.user.id);
+    if (session?.user?.username) {
+      fetchChats(session.user.username);
+      fetchFriends(session.user.username);
     }
   }, [session]);
 
-  const fetchChats = async (userId) => {
+  const fetchChats = async (username) => {
     try {
-      const res = await fetch(`/api/users/${userId}/chats`);
+      const res = await fetch(`/api/users/${username}/chats`);
       if (!res.ok) throw new Error('Failed to fetch chats');
       const data = await res.json();
       setChats(data);
     } catch (error) {
+      console.error('Error fetching chats:', error);
       toast.error('Failed to load chats.');
     } finally {
       setLoadingChats(false);
     }
   };
 
-  const fetchFriends = async (userId) => {
+  const fetchFriends = async (username) => {
     try {
-      const res = await fetch(`/api/users/${userId}/friends`);
+      const res = await fetch(`/api/users/${username}/friends`);
       if (!res.ok) throw new Error('Failed to fetch friends');
       const data = await res.json();
       setFriends(data);
     } catch (error) {
+      console.error('Error fetching friends:', error);
       toast.error('Failed to load friends.');
     } finally {
       setLoadingFriends(false);
     }
   };
 
-  const createChat = async (friendId) => {
-    console.log("Creating chat with userId:", session.user.id, "friendId:", friendId);
+  const createChat = async (friendUsername) => {
     try {
       const res = await fetch('/api/chats/create', {
         method: 'POST',
@@ -68,7 +69,10 @@ export default function ChatDashboard() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.accessToken}`,
         },
-        body: JSON.stringify({ userId: session.user.id, friendId }),
+        body: JSON.stringify({ 
+          username: session.user.username, 
+          friendUsername 
+        }),
       });
 
       const data = await res.json();
@@ -77,7 +81,7 @@ export default function ChatDashboard() {
         setChats([...chats, data.chat]);
         toast.success('Chat created successfully.');
       } else {
-        throw new Error(data.message || 'Failed to create chat.');
+        throw new Error(data.error || 'Failed to create chat.');
       }
     } catch (error) {
       console.error('Error creating chat:', error);

@@ -3,13 +3,14 @@ import User from "@/models/User";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   await DbConnect();
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { username } = params;
+  const  { username } = params;
   try {
     await DbConnect();
 

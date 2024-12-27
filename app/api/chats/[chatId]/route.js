@@ -4,9 +4,10 @@ import DbConnect from "@/lib/dbcon";
 import Chat from "@/models/Chat";
 import { NextResponse } from "next/server";
 
-export async function GET(request, { params }) {
+export async function GET(request, props) {
+  const params = await props.params;
   const session = await getServerSession(authOptions);
-  
+
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

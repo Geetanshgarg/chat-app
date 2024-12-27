@@ -4,7 +4,8 @@ import DbConnect from "@/lib/dbcon";
 import User from "@/models/User";
 import { NextResponse } from "next/server";
 
-export async function GET(request, { params }) {
+export async function GET(request, props) {
+  const params = await props.params;
   const session = await getServerSession(authOptions);
 
   if (!session) {

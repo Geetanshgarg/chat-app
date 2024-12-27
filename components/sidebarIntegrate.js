@@ -1,7 +1,7 @@
 import React from 'react';
 import { SidebarProvider } from './ui/sidebar';
 import { AppSidebar } from './SideBar';
-import { Toaster } from "@/components/ui/toaster"
+
 const SidebarUse = ({ children }) => {
   return (
     <SidebarProvider>
@@ -10,7 +10,7 @@ const SidebarUse = ({ children }) => {
             
         {children}
         </main>
-        <Toaster />
+        
     </SidebarProvider>
   );
 };

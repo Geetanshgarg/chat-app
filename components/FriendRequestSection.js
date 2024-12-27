@@ -1,34 +1,21 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'framer-motion';
 
 export default function FriendRequestSection({ user, session }) {
   const [friendRequestStatus, setFriendRequestStatus] = useState('none');
-  const [friendRequestMessage, setFriendRequestMessage] = useState('');
-  const [alertType, setAlertType] = useState(null); // 'success', 'error', 'warning'
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [friendRequestId, setFriendRequestId] = useState(null); // New state for requestId
-
-  const showAlert = (message, type) => {
-    setFriendRequestMessage(message);
-    setAlertType(type);
-    // Auto dismiss after 5 seconds
-    setTimeout(() => {
-      setFriendRequestMessage('');
-      setAlertType(null);
-    }, 5000);
-  };
 
   useEffect(() => {
     let isMounted = true;
 
     const fetchFriendRequestStatus = async () => {
       try {
-        setLoading(true);
+        setIsLoading(true);
         const res = await fetch(`/api/friend-request/status/${user._id}`);
         if (!res.ok) throw new Error('Failed to fetch status');
         const data = await res.json();
@@ -42,11 +29,11 @@ export default function FriendRequestSection({ user, session }) {
       } catch (error) {
         console.error('Error fetching friend request status:', error);
         if (isMounted) {
-          setFriendRequestMessage('Failed to load friend status');
+          toast.error('Failed to load friend status');
         }
       } finally {
         if (isMounted) {
-          setLoading(false);
+          setIsLoading(false);
         }
       }
     };
@@ -62,35 +49,35 @@ export default function FriendRequestSection({ user, session }) {
 
   const handleSendFriendRequest = async (e) => {
     e.preventDefault();
-    setFriendRequestMessage('');
-    setActionLoading(true);
+    setIsLoading(true);
 
     try {
       const res = await fetch('/api/friend-request/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user._id }),
+        body: JSON.stringify({ 
+          userId: user._id
+        })
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        setFriendRequestStatus('request_sent');
-        showAlert('Friend request sent successfully!', 'success');
+        setFriendRequestStatus('pending');
+        toast.success('Friend request sent successfully!');
       } else {
-        throw new Error(data.message || 'Failed to send friend request');
+        throw new Error(data.message);
       }
     } catch (error) {
-      console.error('Error sending friend request:', error);
-      showAlert(error.message, 'error');
+      toast.error(error.message || 'Failed to send friend request');
     } finally {
-      setActionLoading(false);
+      setIsLoading(false);
     }
   };
 
   const handleAcceptFriendRequest = async () => {
     if (!friendRequestId) {
-      setFriendRequestMessage('Invalid friend request ID');
+      toast.error('Invalid friend request ID');
       return;
     }
 
@@ -105,14 +92,14 @@ export default function FriendRequestSection({ user, session }) {
       const data = await res.json();
 
       if (res.ok) {
-        setFriendRequestStatus('friends');
-        setFriendRequestMessage('Friend request accepted!');
+        setFriendRequestStatus('accepted');
+        toast.success('Friend request accepted!');
       } else {
         throw new Error(data.message || 'Failed to accept friend request');
       }
     } catch (error) {
       console.error('Error accepting friend request:', error);
-      setFriendRequestMessage(error.message);
+      toast.error(error.message);
     } finally {
       setActionLoading(false);
     }
@@ -120,7 +107,7 @@ export default function FriendRequestSection({ user, session }) {
 
   const handleDeclineFriendRequest = async () => {
     if (!friendRequestId) {
-      setFriendRequestMessage('Invalid friend request ID');
+      toast.error('Invalid friend request ID');
       return;
     }
 
@@ -136,13 +123,13 @@ export default function FriendRequestSection({ user, session }) {
 
       if (res.ok) {
         setFriendRequestStatus('none');
-        setFriendRequestMessage('Friend request declined.');
+        toast.success('Friend request declined.');
       } else {
         throw new Error(data.message || 'Failed to decline friend request');
       }
     } catch (error) {
       console.error('Error declining friend request:', error);
-      setFriendRequestMessage(error.message);
+      toast.error(error.message);
     } finally {
       setActionLoading(false);
     }
@@ -161,19 +148,19 @@ export default function FriendRequestSection({ user, session }) {
 
       if (res.ok) {
         setFriendRequestStatus('none');
-        setFriendRequestMessage('Successfully unfriended.');
+        toast.success('Successfully unfriended.');
       } else {
         throw new Error(data.message || 'Failed to unfriend user');
       }
     } catch (error) {
       console.error('Error unfriending user:', error);
-      setFriendRequestMessage(error.message);
+      toast.error(error.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="mt-4">
         <div className="flex space-x-2">
@@ -187,43 +174,23 @@ export default function FriendRequestSection({ user, session }) {
 
   return (
     <div className="mt-4">
-      
-        {friendRequestMessage && alertType && (
-          <div
-          >
-            <Alert 
-              variant={alertType} 
-              className="shadow-lg"
-            >
-              {alertType === 'success' && <CheckCircle2 className="h-4 w-4" />}
-              {alertType === 'error' && <XCircle className="h-4 w-4" />}
-              {alertType === 'warning' && <AlertCircle className="h-4 w-4" />}
-              <AlertTitle>
-                {alertType === 'success' && 'Success'}
-                {alertType === 'error' && 'Error'}
-                {alertType === 'warning' && 'Warning'}
-              </AlertTitle>
-              <AlertDescription>{friendRequestMessage}</AlertDescription>
-            </Alert>
-          </div>
-        )}
-     
-
       {friendRequestStatus === 'none' && (
         <form onSubmit={handleSendFriendRequest}>
           <input type="hidden" name="userId" value={user._id} />
-          <Button type="submit" disabled={actionLoading}>
-            {actionLoading ? 'Sending...' : 'Send Friend Request'}
+          <Button 
+            type="submit" 
+            disabled={isLoading}
+            
+          >
+            {isLoading ? 'Sending...' : 'Send Friend Request'}
           </Button>
         </form>
       )}
 
-      {friendRequestStatus === 'request_sent' && (
-        <div>
-          <Button variant="secondary" disabled>
-            Request Sent
-          </Button>
-        </div>
+      {friendRequestStatus === 'pending' && (
+        <Button disabled variant="outline">
+          Friend Request Pending
+        </Button>
       )}
 
       {friendRequestStatus === 'request_received' && (
@@ -243,6 +210,12 @@ export default function FriendRequestSection({ user, session }) {
             {actionLoading ? 'Declining...' : 'Decline'}
           </Button>
         </div>
+      )}
+
+      {friendRequestStatus === 'accepted' && (
+        <Button disabled className="w-full bg-green-500">
+          Friends
+        </Button>
       )}
 
       {friendRequestStatus === 'friends' && (
