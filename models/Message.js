@@ -24,9 +24,23 @@ const messageSchema = new mongoose.Schema({
     type: String,
     enum: ['text', 'image', 'file'],
     default: 'text'
+  },
+  seenAt: {
+    type: Map,
+    of: Date,
+    default: new Map()
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true }
+});
+
+// Add virtual for formatted timestamp
+messageSchema.virtual('formattedTime').get(function() {
+  return this.createdAt.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 });
 
 const Message = mongoose.models.Message || mongoose.model('Message', messageSchema);

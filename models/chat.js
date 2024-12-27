@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
+import Message from './Message';  // Import the Message model
 
-// ...existing code...
 const ChatSchema = new mongoose.Schema({
   participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   isGroup: { type: Boolean, default: false },
@@ -11,4 +11,12 @@ const ChatSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-export default mongoose.models.Chat || mongoose.model('Chat', ChatSchema);
+// Make sure Message model is registered before using it in relations
+mongoose.models = mongoose.models || {};
+if (!mongoose.models.Message) {
+  mongoose.model('Message', Message.schema);
+}
+
+const Chat = mongoose.models.Chat || mongoose.model('Chat', ChatSchema);
+
+export default Chat;

@@ -14,7 +14,7 @@ export async function GET(request, props) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { username } = props.params;
+    const { username } = (await props.params);
     
     // Find user by username
     const user = await User.findOne({ username });
@@ -22,10 +22,28 @@ export async function GET(request, props) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get all chats for user
+    // Updated query to populate lastMessage
     const chats = await Chat.find({
       participants: user._id
-    }).populate("participants", "username firstName lastName image");
+    })
+    .populate("participants", "username firstName lastName image")
+    .populate({
+      path: "lastMessage",
+      select: "text createdAt readBy",
+      populate: {
+        path: "sender",
+        select: "firstName lastName _id"
+      }
+    })
+    .populate({
+      path: "messages",
+      select: "sender readBy createdAt",
+      populate: {
+        path: "sender",
+        select: "_id"
+      }
+    })
+    .sort({ updatedAt: -1 });
 
     return NextResponse.json(chats);
     

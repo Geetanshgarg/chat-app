@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import ChatWindow from "./ChatWindow";
+import { Badge } from "@/components/ui/badge";
 
 export default function ChatDashboard() {
   const { data: session, status } = useSession();
@@ -26,6 +27,7 @@ export default function ChatDashboard() {
   const [loadingChats, setLoadingChats] = useState(true);
   const [selectedChat, setSelectedChat] = useState(null);
   const [open, setOpen] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState({});
 
   useEffect(() => {
     if (session?.user?.username) {
@@ -192,6 +194,65 @@ export default function ChatDashboard() {
     );
   };
 
+  const getUnreadCount = (chat) => {
+    // Add safety checks
+    if (!chat?.messages?.length) return 0;
+    if (!session?.user?.id) return 0;
+
+    return chat.messages.filter(msg => {
+      return msg?.sender && 
+             msg.sender._id !== session.user.id && 
+             (!msg.readBy || !msg.readBy.includes(session.user.id));
+    }).length;
+  };
+
+  const getLastMessagePreview = (chat) => {
+    if (!chat?.lastMessage) return 'No messages yet';
+    return chat.lastMessage.text || 'No message content';
+  };
+
+  const getLastMessageTime = (chat) => {
+    if (!chat?.lastMessage?.createdAt) return '';
+    return new Date(chat.lastMessage.createdAt).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const refreshUnreadCounts = async () => {
+    if (!session?.user?.id) return;
+    
+    const counts = {};
+    chats.forEach(chat => {
+      counts[chat._id] = chat.messages?.filter(msg => 
+        msg?.sender?._id !== session.user.id && 
+        (!msg.readBy?.includes(session.user.id))
+      ).length || 0;
+    });
+    setUnreadCounts(counts);
+  };
+
+  useEffect(() => {
+    refreshUnreadCounts();
+  }, [chats, session]);
+
+  const handleChatSelect = async (chat) => {
+    setSelectedChat(chat);
+    // Mark messages as read when selecting chat
+    if (unreadCounts[chat._id] > 0) {
+      try {
+        await fetch(`/api/chats/${chat._id}/read`, {
+          method: 'POST',
+        });
+        setUnreadCounts(prev => ({ ...prev, [chat._id]: 0 }));
+        // Refresh chats to update last message status
+        fetchChats(session.user.username);
+      } catch (error) {
+        console.error('Error marking messages as read:', error);
+      }
+    }
+  };
+
   if (status === "loading") {
     return <Skeleton className="w-full h-48" />;
   }
@@ -229,36 +290,52 @@ export default function ChatDashboard() {
                   {chats.length > 0 ? (
                     chats.map((chat) => {
                       const otherParticipant = getOtherParticipant(chat);
+                      const unreadCount = unreadCounts[chat._id] || 0;
+                      const lastMessage = getLastMessagePreview(chat);
+                      const lastMessageTime = getLastMessageTime(chat);
+                      
                       return (
                         <div
                           key={chat._id}
-                          className={`flex items-center flex-row rounded-sm border-b my-2 gap-2 p-2 hover:border cursor-pointer ${
+                          className={`flex items-center justify-between rounded-sm border-b my-2 p-2 hover:border cursor-pointer ${
                             selectedChat?._id === chat._id ? 'bg-secondary' : ''
                           }`}
-                          onClick={() => setSelectedChat(chat)}
+                          onClick={() => handleChatSelect(chat)}
                         >
-                          {chat.isGroup ? (
-                            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white">
-                              {chat.name?.charAt(0)}
+                          <div className="flex items-center gap-2">
+                            {chat.isGroup ? (
+                              <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white">
+                                {chat.name?.charAt(0)}
+                              </div>
+                            ) : (
+                              <Image
+                                src={otherParticipant?.image || "/default-avatar.png"}
+                                alt={otherParticipant?.firstName}
+                                width={40}
+                                height={40}
+                                className="rounded-full"
+                              />
+                            )}
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {chat.isGroup 
+                                  ? chat.name 
+                                  : `${otherParticipant?.firstName} ${otherParticipant?.lastName}`}
+                              </span>
+                              <span className="text-sm text-muted-foreground">
+                                {lastMessage}
+                              </span>
                             </div>
-                          ) : (
-                            <Image
-                              src={otherParticipant?.image || "/default-avatar.png"}
-                              alt={otherParticipant?.firstName}
-                              width={40}
-                              height={40}
-                              className="rounded-full"
-                            />
-                          )}
-                          <div className="flex flex-col">
-                            <span className="font-medium">
-                              {chat.isGroup 
-                                ? chat.name 
-                                : `${otherParticipant?.firstName} ${otherParticipant?.lastName}`}
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs text-muted-foreground">
+                              {lastMessageTime}
                             </span>
-                            <span className="text-sm text-muted-foreground">
-                              {chat.lastMessage?.content || 'No messages yet'}
-                            </span>
+                            {unreadCount > 0 && (
+                              <Badge variant="default" className="mt-1">
+                                {unreadCount}
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       );

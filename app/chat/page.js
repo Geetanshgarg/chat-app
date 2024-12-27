@@ -4,7 +4,7 @@ import ChatDashboard from '@/components/ChatDashboard';
 
 export default function ChatPage() {
   return (
-    <div className="p-4 max-h-screen">
+    <div className="m-4 max-h-[99%]">
       <ChatDashboard />
     </div>
   );
