@@ -26,8 +26,7 @@ const UserSchema = new mongoose.Schema({
   location: { type: String },        // Add this
   phone: { type: String },           // Add this
   friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Friends list
-  chatBackground: { type: String, default: '' },
-
+  chatBackground: { type: String, default: '/backgroundimages/1.jpeg' },
 }, {
   timestamps: true, // Adds createdAt and updatedAt fields
 });
