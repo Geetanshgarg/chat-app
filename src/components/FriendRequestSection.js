@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { AnimatePresence, motion } from 'framer-motion';
+
 
 export default function FriendRequestSection({ user, session }) {
   const [friendRequestStatus, setFriendRequestStatus] = useState('none');
