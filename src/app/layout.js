@@ -2,7 +2,8 @@ import localFont from "next/font/local";
 import "./globals.css";
 import SessionWrapper from "@/components/SessionWrapper";
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
-import {Toaster} from '@/components/ui/sonner';
+import { Toaster } from "@/components/ui/sonner"
+
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
   variable: "--font-geist-sans",
@@ -23,13 +24,16 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`chat-app-gradient min-h-screen ${geistSans.variable} ${geistMono.variable}`}>
         <SessionWrapper>
-          <ThemeProvider>            
-              {children}
-              <Toaster position = "top-right" richColors />
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+            <Toaster position="top-right" richColors />
           </ThemeProvider>
         </SessionWrapper>
       </body>

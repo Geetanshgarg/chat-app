@@ -13,12 +13,13 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import Image from "next/image";
 import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import ChatWindow from "./ChatWindow";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import CommandBox from './CommandBox';
 
 export default function ChatDashboard() {
   const { data: session, status } = useSession();
@@ -170,21 +171,9 @@ export default function ChatDashboard() {
   };
 
   const handleCommand = async (type, data) => {
-    if (type === 'friend') {
+    if (type === 'chat') {
       await handleFriendClick(data);
-    } else if (type === 'group') {
-      // Only create group if it doesn't exist
-      const existingGroup = chats.find(
-        (chat) => chat.isGroup && chat.name === data.name
-      );
-      
-      if (!existingGroup) {
-        await createGroupChat(data.name, data.members);
-      } else {
-        setSelectedChat(existingGroup);
-      }
     }
-    setOpen(false);
   };
 
   const getOtherParticipant = (chat) => {
@@ -237,15 +226,22 @@ export default function ChatDashboard() {
   }, [chats, session]);
 
   const handleChatSelect = async (chat) => {
-    setSelectedChat(chat);
-    // Mark messages as read when selecting chat
+    const friendInfo = chat.isGroup 
+      ? { name: chat.name, image: null, isGroup: true, memberCount: chat.participants.length }
+      : chat.participants.find(p => p._id !== session.user.id);
+      
+    setSelectedChat({
+      ...chat,
+      friendInfo
+    });
+    
+    // Mark as read logic
     if (unreadCounts[chat._id] > 0) {
       try {
         await fetch(`/api/chats/${chat._id}/read`, {
           method: 'POST',
         });
         setUnreadCounts(prev => ({ ...prev, [chat._id]: 0 }));
-        // Refresh chats to update last message status
         fetchChats(session.user.username);
       } catch (error) {
         console.error('Error marking messages as read:', error);
@@ -268,135 +264,104 @@ export default function ChatDashboard() {
   }
 
   return (
-    <>
-      <div className="flex space-x-4 h-screen">
-        <div className="w-1/3">
-          <Card className="h-[90%]">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Active Chats</CardTitle>
-              <Button 
-                variant="outline" 
-                onClick={() => setOpen(true)}
-                className="ml-2"
-              >
-                New Chat
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {loadingChats ? (
-                <Skeleton className="w-full h-48" />
-              ) : (
-                <ScrollArea className="h-[90%]">
-                  {chats.length > 0 ? (
-                    chats.map((chat) => {
-                      const otherParticipant = getOtherParticipant(chat);
-                      const unreadCount = unreadCounts[chat._id] || 0;
-                      const lastMessage = getLastMessagePreview(chat);
-                      const lastMessageTime = getLastMessageTime(chat);
-                      
-                      return (
-                        <div
-                          key={chat._id}
-                          className={`flex items-center justify-between rounded-sm border-b my-2 p-2 hover:border cursor-pointer ${
-                            selectedChat?._id === chat._id ? 'bg-secondary' : ''
-                          }`}
-                          onClick={() => handleChatSelect(chat)}
-                        >
-                          <div className="flex items-center gap-2">
-                            {chat.isGroup ? (
-                              <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white">
-                                {chat.name?.charAt(0)}
-                              </div>
-                            ) : (
-                              <Image
-                                src={otherParticipant?.image || "/default-avatar.png"}
-                                alt={otherParticipant?.firstName}
-                                width={40}
-                                height={40}
-                                className="rounded-full"
-                              />
-                            )}
-                            <div className="flex flex-col">
-                              <span className="font-medium">
-                                {chat.isGroup 
-                                  ? chat.name 
-                                  : `${otherParticipant?.firstName} ${otherParticipant?.lastName}`}
-                              </span>
-                              <span className="text-sm text-muted-foreground">
-                                {lastMessage}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end">
-                            <span className="text-xs text-muted-foreground">
-                              {lastMessageTime}
+    <div className="flex space-x-4 h-[calc(100vh-5rem)] p-4">
+      <div className="w-1/3">
+        <Card className="h-[90vh] shadow-lg border-0 bg-card/50 backdrop-blur-sm">
+          <CardHeader className="flex flex-row items-center justify-between border-b">
+            <CardTitle className="text-lg font-medium">Messages</CardTitle>
+            <Button 
+              variant="outline" 
+              onClick={() => setOpen(true)}
+              className="ml-2 hover:bg-accent hover:text-accent-foreground"
+            >
+              New Chat
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            {loadingChats ? (
+              <Skeleton className="w-full h-48" />
+            ) : (
+              <ScrollArea className="h-[90%]">
+                {chats.length > 0 ? (
+                  chats.map((chat) => {
+                    const otherParticipant = getOtherParticipant(chat);
+                    const unreadCount = unreadCounts[chat._id] || 0;
+                    const lastMessage = getLastMessagePreview(chat);
+                    const lastMessageTime = getLastMessageTime(chat);
+                    
+                    return (
+                      <div
+                        key={chat._id}
+                        className={`flex items-center justify-between p-4 hover:bg-accent/5 transition-colors cursor-pointer ${
+                          selectedChat?._id === chat._id ? 'bg-accent/10' : ''
+                        }`}
+                        onClick={() => handleChatSelect(chat)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage 
+                              src={chat.isGroup ? null : otherParticipant?.image || "/default-avatar.png"}
+                              alt={chat.isGroup ? chat.name : otherParticipant?.firstName}
+                            />
+                            <AvatarFallback className={chat.isGroup ? "bg-primary text-primary-foreground" : ""}>
+                              {chat.isGroup ? chat.name?.charAt(0) : otherParticipant?.firstName?.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex flex-col">
+                            <span className="font-medium">
+                              {chat.isGroup 
+                                ? chat.name 
+                                : `${otherParticipant?.firstName} ${otherParticipant?.lastName}`}
                             </span>
-                            {unreadCount > 0 && (
-                              <Badge variant="default" className="mt-1">
-                                {unreadCount}
-                              </Badge>
-                            )}
+                            <span className="text-sm text-muted-foreground">
+                              {lastMessage}
+                            </span>
                           </div>
                         </div>
-                      );
-                    })
-                  ) : (
-                    <Alert>
-                      <AlertTitle>No Chats</AlertTitle>
-                      <AlertDescription>
-                        Start a new chat using the button above.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="w-2/3">
-          {selectedChat ? (
-            <ChatWindow chatId={selectedChat._id} />
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-lg text-gray-500">
-                Select a chat to start messaging.
-              </p>
-            </div>
-          )}
-        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="text-xs text-muted-foreground">
+                            {lastMessageTime}
+                          </span>
+                          {unreadCount > 0 && (
+                            <Badge variant="default" className="mt-1">
+                              {unreadCount}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <Alert>
+                    <AlertTitle>No Chats</AlertTitle>
+                    <AlertDescription>
+                      Start a new chat using the button above.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="Search people or create a group..." />
-        <CommandList>
-          <CommandEmpty>No results found.</CommandEmpty>
-          <CommandGroup heading="Friends">
-            {friends.map((friend) => (
-              <CommandItem
-                key={friend._id}
-                onSelect={() => handleCommand('friend', friend)}
-              >
-                <Image
-                  src={friend.image || "/default-avatar.png"}
-                  alt={friend.firstName}
-                  width={24}
-                  height={24}
-                  className="rounded-full mr-2"
-                />
-                {friend.firstName} {friend.lastName}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-          <CommandGroup heading="Actions">
-            <CommandItem
-              onSelect={() => handleCommand('group', { isNewGroup: true })}
-            >
-              Create New Group
-            </CommandItem>
-          </CommandGroup>
-        </CommandList>
-      </CommandDialog>
-    </>
+      <div className="w-2/3">
+        {selectedChat ? (
+          <div className="rounded-lg overflow-hidden shadow-lg">
+            <ChatWindow 
+              chatId={selectedChat._id} 
+              friendInfo={selectedChat.friendInfo}
+            />
+          </div>
+        ) : (
+          <Card className="h-[90vh] flex items-center justify-center bg-card/50 backdrop-blur-sm border-0">
+            <p className="text-lg text-muted-foreground">
+              Select a chat to start messaging
+            </p>
+          </Card>
+        )}
+      </div>
+      <CommandBox onCommand={handleCommand} />
+    </div>
   );
 }

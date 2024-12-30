@@ -50,20 +50,39 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from "./ui/collapsible";
+import CommandBox from "./CommandBox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function AppSidebar() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [isCommandOpen, setIsCommandOpen] = useState(false);
+
   useEffect(() => {
     // Wait until loading is complete
     if (status === "unauthenticated") {
       router.push("/login");
     }
   }, [status, router]);
+
   const handleSignOut = () => {
     signOut();
   };
+
+  const handleCommand = (type, data) => {
+    if (type === 'profile') {
+      router.push(`/${data.username}`);
+    } else if (type === 'chat') {
+      // Implement chat opening logic here
+    }
+  };
+
   const renderAlertDialog = () => (
     <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
       <AlertDialogContent>
@@ -85,81 +104,89 @@ export function AppSidebar() {
   );
 
   return (
-    <Sidebar>
-      <SidebarHeader>
-        <h3 className="scroll-m-20 text-2xl text-center font-semibold tracking-tight">
-          Menu
-        </h3>
+    <Sidebar className="min-h-screen border-r bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <SidebarHeader className="border-b px-6 py-4 flex flex-row justify-between items-center">
+        <h3 className="text-xl font-semibold text-primary">Chat App</h3>
+        <div className="flex items-center gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hover:bg-accent relative group"
+                  onClick={() => setIsCommandOpen(true)}
+                >
+                  <Search className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Search (⌘/Ctrl+Q)</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <CommandBox 
+            open={isCommandOpen} 
+            onOpenChange={setIsCommandOpen}
+            onCommand={handleCommand} 
+          />
+        </div>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="px-4">
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground/70">
+            Navigation
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => router.push("/chat")}>
-                  <MessageCircleMore />
-                  Chat Section
+                <SidebarMenuButton 
+                  onClick={() => router.push("/chat")}
+                  className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-accent transition-colors"
+                >
+                  <MessageCircleMore className="h-5 w-5 text-primary" />
+                  <span className="font-medium">Chat</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => router.push("/Inbox")}>
-                  <Inbox />
-                  Inbox
+                <SidebarMenuButton 
+                  onClick={() => router.push("/Inbox")}
+                  className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-accent transition-colors"
+                >
+                  <Inbox className="h-5 w-5 text-primary" />
+                  <span className="font-medium">Inbox</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => router.push("/Search")}>
-                  <Search />
-                  Search
+                <SidebarMenuButton 
+                  onClick={() => router.push("/Search")}
+                  className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-accent transition-colors"
+                >
+                  <Search className="h-5 w-5 text-primary" />
+                  <span className="font-medium">Search</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <Collapsible defaultOpen className="group/collapsible">
+                <Collapsible defaultOpen className="group/collapsible w-full">
                   <CollapsibleTrigger asChild>
-                    <SidebarMenuButton>
-                      <Settings />
-                      Settings
-                      <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                    <SidebarMenuButton className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-accent transition-colors">
+                      <Settings className="h-5 w-5 text-primary" />
+                      <span className="font-medium">Settings</span>
+                      <ChevronRight className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
-                  <CollapsibleContent>
+                  <CollapsibleContent className="pl-6 space-y-1">
                     <SidebarMenuSub>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          onClick={() => router.push("/settings")}
-                        >
-                          Profile
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          onClick={() => router.push("/settings/apperance")}
-                        >
-                          Apperance
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          onClick={() => router.push("/settings/account")}
-                        >
-                          Account
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          onClick={() => router.push("/settings/chat")}
-                        >
-                          Chat
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          onClick={() => router.push("/settings/other")}
-                        >
-                          Other
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
+                      {['Profile', 'Appearance', 'Account', 'Chat', 'Other'].map((item) => (
+                        <SidebarMenuSubItem key={item}>
+                          <SidebarMenuSubButton
+                            onClick={() => router.push(`/settings/${item.toLowerCase()}`)}
+                            className="w-full text-sm py-2 px-4 rounded-md hover:bg-accent/50 transition-colors"
+                          >
+                            {item}
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
                     </SidebarMenuSub>
                   </CollapsibleContent>
                 </Collapsible>
@@ -168,12 +195,12 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="border-t p-4">
         <SidebarMenuButton asChild>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                className="w-full h-14 justify-start flex gap-2 p-4 rounded-lg "
+                className="w-full h-14 justify-start gap-3 p-4 rounded-lg hover:bg-accent transition-colors"
                 variant="ghost"
               >
                 <Image
@@ -181,36 +208,34 @@ export function AppSidebar() {
                   alt="Profile"
                   width={32}
                   height={32}
-                  className="rounded-full"
+                  className="rounded-full ring-2 ring-primary/10"
                 />
                 <div className="flex flex-col text-left">
-                  <span className="text-foreground">
+                  <span className="font-medium text-foreground">
                     {session?.user?.name || "Unnamed"}
                   </span>
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-xs text-muted-foreground">
                     @{session?.user?.username || "username"}
                   </span>
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem
-                onClick={() => router.push(`/${session?.user?.username}`)}
-              >
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem className="flex items-center gap-2" onClick={() => router.push(`/${session?.user?.username}`)}>
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/settings")}>
+              <DropdownMenuItem className="flex items-center gap-2" onClick={() => router.push("/settings")}>
                 Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setIsAlertOpen(true)}>
+              <DropdownMenuItem className="flex items-center gap-2 text-destructive" onClick={() => setIsAlertOpen(true)}>
                 Sign Out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </SidebarMenuButton>
+        {renderAlertDialog()}
       </SidebarFooter>
-      {renderAlertDialog()}
     </Sidebar>
   );
 }

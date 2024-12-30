@@ -18,7 +18,6 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import { Card , CardContent} from "@/components/ui/card";
-import { set } from "mongoose";
 
 const appearanceFormSchema = z.object({
   theme: z.string().min(1, { message: "Theme is required." }),

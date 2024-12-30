@@ -16,6 +16,14 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import Sidebaruse from '@/components/sidebarIntegrate';
 import { Separator } from '@/components/ui/separator';
 import { FriendRequestsDialog } from '@/components/FriendRequestsDialog';
+import { MessageCircle } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const DynamicFriendRequestsDialog = dynamic(() => import('@/components/FriendRequestsDialog'), {
   loading: () => <Skeleton className="w-full h-10" />,
@@ -104,6 +112,11 @@ export default function ProfilePage({params}) {
 
   const isOwnProfile = session?.user?.id === user._id;
 
+  const handleStartChat = async () => {
+    router.push('/chat');
+    // You can add logic here to open the specific chat
+  };
+
   return (
   <Sidebaruse>
       <div className="flex min-h-screen min-w-screen flex-col p-6 md:p-10">
@@ -119,14 +132,16 @@ export default function ProfilePage({params}) {
         <Separator orientation="horizontal" className="my-6" />
         <div className="w-full max-w-3xl">
           <div className="flex items-center mb-6">
-            <Image
-              src={user.image || '/default-profile.png'}
-              alt={`${user.firstName} ${user.lastName}`}
-              width={120}
-              height={120}
-              className="rounded-full"
-            />
-            <div className="ml-4">
+            <Avatar className="h-32 w-32 border-4 border-primary/10">
+              <AvatarImage
+                src={user.image || '/default-profile.png'}
+                alt={`${user.firstName} ${user.lastName}`}
+              />
+              <AvatarFallback className="text-4xl">
+                {user.firstName?.[0]}
+              </AvatarFallback>
+            </Avatar>
+            <div className="ml-6">
               <h1 className="text-2xl text-foreground font-bold">
                 {`${user.firstName} ${user.lastName}`}
               </h1>
@@ -149,15 +164,42 @@ export default function ProfilePage({params}) {
             )}
 
             {isOwnProfile ? (
-              <Button onClick={()=> router.push("/settings")}>Edit Profile</Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button onClick={() => router.push("/settings")}>Edit Profile</Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Customize your profile settings</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             ) : (
-              session?.user && (
+              <div className="flex gap-2">
                 <FriendRequestSection
                   user={user}
                   session={session}
                   onUpdateUser={(updatedUser) => setUser(updatedUser)}
                 />
-              )
+                {user.isFriend && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          onClick={handleStartChat}
+                          className="flex items-center gap-2"
+                        >
+                          <MessageCircle className="h-5 w-5" />
+                          Message
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Start a chat with {user.firstName}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
             )}
           </div>
         </div>

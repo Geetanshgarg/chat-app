@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import Sidebaruse from '@/components/sidebarIntegrate';
+import MainNavbar from '@/components/MainNavbar';
 const settingsSections = [
   { 
     name: 'Profile',
@@ -40,10 +41,10 @@ export default function SettingsLayout({ children }) {
 
   return (
     <Sidebaruse>
+      <MainNavbar/>
     <div className="hidden space-y-6 p-10 pb-16 md:block">
       <div className="flex flex-row gap-3 items-center">
 
-      <SidebarTrigger />
       <div className="space-y-0.5">
           <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
           <p className="text-muted-foreground">
