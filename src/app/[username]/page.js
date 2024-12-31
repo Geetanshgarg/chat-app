@@ -24,6 +24,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { toast } from "sonner";
+import { useSearchParams } from 'next/navigation';
 
 const DynamicFriendRequestsDialog = dynamic(() => import('@/components/FriendRequestsDialog'), {
   loading: () => <Skeleton className="w-full h-10" />,
@@ -117,6 +119,36 @@ export default function ProfilePage({params}) {
     // You can add logic here to open the specific chat
   };
 
+  const handleChatClick = async () => {
+    try {
+      const res = await fetch(`/api/chats/find`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ friendUsername: user.username })
+      });
+      
+      if (!res.ok) throw new Error('Failed to get chat');
+      const chatData = await res.json();
+      
+      // Store chat data in localStorage
+      window.localStorage.setItem('activeChat', JSON.stringify({
+        chatId: chatData._id,
+        friendInfo: {
+          name: `${user.firstName} ${user.lastName}`,
+          username: user.username,
+          image: user.image,
+          isOnline: user.isOnline
+        }
+      }));
+
+      router.push('/chat');
+      toast.success(`Opening chat with ${user.firstName}`);
+    } catch (error) {
+      console.error('Error opening chat:', error);
+      toast.error('Failed to open chat');
+    }
+  };
+
   return (
   <Sidebaruse>
       <div className="flex min-h-screen min-w-screen flex-col p-6 md:p-10">
@@ -175,7 +207,7 @@ export default function ProfilePage({params}) {
                 </Tooltip>
               </TooltipProvider>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <FriendRequestSection
                   user={user}
                   session={session}
@@ -186,10 +218,11 @@ export default function ProfilePage({params}) {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button 
-                          onClick={handleStartChat}
-                          className="flex items-center gap-2"
+                          onClick={handleChatClick}
+                          className="h-10" // Match height with friend request button
+                          variant="secondary"
                         >
-                          <MessageCircle className="h-5 w-5" />
+                          <MessageCircle className="h-5 w-5 mr-2" />
                           Message
                         </Button>
                       </TooltipTrigger>

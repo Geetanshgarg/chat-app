@@ -6,104 +6,83 @@ import Message from "@/models/Message";
 import { NextResponse } from "next/server";
 import ChatNotification from '@/models/ChatNotification'; // Import ChatNotification model
 
-export async function GET(request, props) {
-  const params = await props.params;
-  const session = await getServerSession(authOptions);
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { chatId } = params; // Correct destructuring
-  console.log(`GET request received for chatId: ${chatId}`); // Added log
-
+export async function GET(req, { params }) {
   try {
-    await DbConnect();
-
-    const messages = await Message.find({ conversation: chatId })
-      .populate("sender", "firstName lastName image _id")
-      .sort({ createdAt: 1 });
-
-    return NextResponse.json(messages, { status: 200 });
-  } catch (error) {
-    console.error("Error fetching messages:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch messages." },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(request, props) {
-  const params = await props.params;
-  const session = await getServerSession(authOptions);
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { chatId } = params;
-
-  try {
-    await DbConnect();
-    const { content } = await request.json();
-
-    if (!content?.trim()) {
-      return NextResponse.json(
-        { error: "Message content cannot be empty" },
-        { status: 400 }
-      );
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // First validate the chat exists and user is a participant
-    const chat = await Chat.findById(chatId)
-      .populate("participants", "firstName lastName image username");
+    await DbConnect();
+    const { chatId } = params;
 
+    const chat = await Chat.findById(chatId);
     if (!chat) {
       return NextResponse.json({ error: "Chat not found" }, { status: 404 });
     }
 
-    const isMember = chat.participants.some(
-      p => p._id.toString() === session.user.id
-    );
+    // Add timestamp query parameter for pagination/lazy loading if needed
+    const messages = await Message.find({ 
+      conversation: chatId 
+    })
+    .populate("sender", "firstName lastName image _id username")
+    .sort({ createdAt: 1 })
+    .limit(50); // Limit initial load
 
-    if (!isMember) {
-      return NextResponse.json(
-        { error: "Not authorized to send messages in this chat" },
-        { status: 403 }
-      );
+    // Mark messages as read in background
+    Message.updateMany(
+      {
+        conversation: chatId,
+        sender: { $ne: session.user.id },
+        readBy: { $ne: session.user.id }
+      },
+      { $addToSet: { readBy: session.user.id } }
+    ).then(() => {
+      global.io?.to(chatId).emit('messages-read', { 
+        userId: session.user.id,
+        chatId 
+      });
+    });
+
+    return NextResponse.json(messages);
+  } catch (error) {
+    console.error("Error fetching messages:", error);
+    return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 });
+  }
+}
+
+export async function POST(request, { params }) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Create and save the message with correct field names
-    const message = new Message({
-      text: content.trim(), // Changed from content to text
-      conversation: chatId, // Changed from chat to conversation
+    await DbConnect();
+    const { chatId } = params;
+    const { content } = await request.json();
+
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+    }
+
+    const message = await Message.create({
+      text: content.trim(),
+      conversation: chatId,
       sender: session.user.id,
       readBy: [session.user.id]
     });
 
-    await message.save();
     await message.populate("sender", "firstName lastName image username");
 
-    // Update the chat's lastMessage
+    // Update chat's last message
     chat.lastMessage = message._id;
-    chat.messages.push(message._id);
     await chat.save();
 
-    // Return populated message
-    const populatedMessage = await Message.findById(message._id)
-      .populate("sender", "firstName lastName image username");
-
-    return NextResponse.json(populatedMessage, { status: 201 });
+    return NextResponse.json(message);
   } catch (error) {
-    console.error("Message creation error:", error);
-    return NextResponse.json(
-      { 
-        error: "Failed to send message", 
-        details: error.message,
-        validationErrors: error.errors 
-      },
-      { status: 500 }
-    );
+    console.error("Error creating message:", error);
+    return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
   }
 }

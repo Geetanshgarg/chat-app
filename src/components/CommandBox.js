@@ -59,13 +59,23 @@ export default function CommandBox({ open, onOpenChange, onCommand }) {
     }
   };
 
-  const handleSelect = (type, data) => {
+  const handleSelect = async (type, data) => {
     if (type === 'profile') {
       router.push(`/${data.username}`);
     } else if (type === 'chat') {
-      onCommand?.(type, data);
-    } else if (type === 'navigation') {
-      router.push(data);
+      const friendInfo = {
+        name: `${data.friend.firstName} ${data.friend.lastName}`,
+        username: data.friend.username,
+        image: data.friend.image,
+        isOnline: data.friend.isOnline
+      };
+      
+      window.localStorage.setItem('activeChat', JSON.stringify({
+        chatId: data.chat._id,
+        friendInfo
+      }));
+      
+      router.push('/chat');
     }
     onOpenChange?.(false);
   };

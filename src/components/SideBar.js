@@ -175,7 +175,7 @@ export function AppSidebar() {
                       <ChevronRight className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="pl-6 space-y-1">
+                  <CollapsibleContent className="pl-2 space-y-1">
                     <SidebarMenuSub>
                       {['Profile', 'Appearance', 'Account', 'Chat', 'Other'].map((item) => (
                         <SidebarMenuSubItem key={item}>

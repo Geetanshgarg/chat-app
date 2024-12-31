@@ -7,6 +7,11 @@ const ChatSchema = new mongoose.Schema({
   name: { type: String }, // Add name for group chats
   lastMessage: { type: mongoose.Schema.Types.ObjectId, ref: 'Message' },
   messages: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Message' }],
+  theme: {
+    type: String,
+    default: 'default',
+    // Remove enum validation since we want to be more flexible with themes
+  },
 }, {
   timestamps: true,
 });

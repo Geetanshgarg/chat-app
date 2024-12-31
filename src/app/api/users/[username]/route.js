@@ -3,29 +3,45 @@ import User from "@/models/User";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+
 export async function GET(req, props) {
-  const params = await props.params;
-  await DbConnect();
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const  { username } = params;
   try {
+    const params = await props.params;
     await DbConnect();
+    const session = await getServerSession(authOptions);
 
-    const user = await User.findOne({ username }).select("-password");
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    if (!user) {
+    const { username } = params;
+    
+    // Find both the requested user and the current user
+    const [requestedUser, currentUser] = await Promise.all([
+      User.findOne({ username }).select("-password"),
+      User.findById(session.user.id).populate('friends')
+    ]);
+
+    if (!requestedUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json(user);
+    // Add isFriend property safely
+    const userObject = requestedUser.toObject();
+    userObject.isFriend = false; // default value
+
+    if (currentUser && currentUser.friends) {
+      userObject.isFriend = currentUser.friends.some(friend => 
+        friend._id.toString() === requestedUser._id.toString()
+      );
+    }
+
+    return NextResponse.json(userObject);
   } catch (error) {
     console.error("Error fetching user:", error);
-    return new Response(JSON.stringify({ message: "Server error" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json(
+      { error: "Failed to fetch user details" },
+      { status: 500 }
+    );
   }
 }

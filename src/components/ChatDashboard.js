@@ -20,6 +20,7 @@ import ChatWindow from "./ChatWindow";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import CommandBox from './CommandBox';
+import NewChatDialog from "./NewChatDialog";
 
 export default function ChatDashboard() {
   const { data: session, status } = useSession();
@@ -29,6 +30,7 @@ export default function ChatDashboard() {
   const [selectedChat, setSelectedChat] = useState(null);
   const [open, setOpen] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({});
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
 
   useEffect(() => {
     if (session?.user?.username) {
@@ -36,6 +38,23 @@ export default function ChatDashboard() {
       fetchFriends(session.user.username);
     }
   }, [session]);
+
+  useEffect(() => {
+    // Check for stored active chat on mount
+    const storedChat = window.localStorage.getItem('activeChat');
+    if (storedChat) {
+      const chatData = JSON.parse(storedChat);
+      const chat = chats.find(c => c._id === chatData.chatId);
+      if (chat) {
+        handleChatSelect({
+          ...chat,
+          friendInfo: chatData.friendInfo
+        });
+      }
+      // Clear the stored chat after handling
+      window.localStorage.removeItem('activeChat');
+    }
+  }, [chats]);
 
   const fetchChats = async (username) => {
     try {
@@ -249,6 +268,42 @@ export default function ChatDashboard() {
     }
   };
 
+  const handleFriendSelect = async (friend) => {
+    try {
+      // Find existing chat first
+      const existingChat = chats.find(
+        (chat) =>
+          !chat.isGroup &&
+          chat.participants.some(
+            (participant) => participant.username === friend.username
+          )
+      );
+
+      if (existingChat) {
+        handleChatSelect(existingChat);
+        return;
+      }
+
+      // Create new chat
+      const res = await fetch("/api/chats/find", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendUsername: friend.username }),
+      });
+
+      if (!res.ok) throw new Error("Failed to create chat");
+      const chatData = await res.json();
+
+      // Add to chats list and select it
+      setChats(prev => [...prev, chatData]);
+      handleChatSelect(chatData);
+      toast.success(`Started chat with ${friend.firstName}`);
+    } catch (error) {
+      console.error("Error creating chat:", error);
+      toast.error("Failed to start chat");
+    }
+  };
+
   if (status === "loading") {
     return <Skeleton className="w-full h-48" />;
   }
@@ -271,7 +326,7 @@ export default function ChatDashboard() {
             <CardTitle className="text-lg font-medium">Messages</CardTitle>
             <Button 
               variant="outline" 
-              onClick={() => setOpen(true)}
+              onClick={() => setIsNewChatOpen(true)}
               className="ml-2 hover:bg-accent hover:text-accent-foreground"
             >
               New Chat
@@ -362,6 +417,12 @@ export default function ChatDashboard() {
         )}
       </div>
       <CommandBox onCommand={handleCommand} />
+      <NewChatDialog
+        open={isNewChatOpen}
+        onClose={() => setIsNewChatOpen(false)}
+        friends={friends}
+        onSelectFriend={handleFriendSelect}
+      />
     </div>
   );
 }

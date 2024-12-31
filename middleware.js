@@ -3,15 +3,17 @@ import { NextResponse } from 'next/server';
 
 export default withAuth({
   callbacks: {
-    authorized: ({ token }) => {
-      // If token exists, the user is authorized
-      return !!token;
-    },
+    authorized: ({ token }) => !!token,
   },
 });
 
 export function middleware(request) {
   const { pathname } = request.nextUrl;
+
+  // Allow WebSocket upgrade requests
+  if (request.headers.get("upgrade")?.toLowerCase() === "websocket") {
+    return NextResponse.next();
+  }
 
   // List of reserved paths
   const reservedPaths = ['/_next', '/api', '/login', '/register', '/set-username', '/404', '/500', '/favicon.ico','/dashboard'];

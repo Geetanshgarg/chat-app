@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import bcrypt from "bcryptjs";
 
 const UserSchema = new mongoose.Schema({
   firstName: { type: String, required: true },    // User's first name
@@ -30,6 +31,13 @@ const UserSchema = new mongoose.Schema({
 }, {
   timestamps: true, // Adds createdAt and updatedAt fields
 });
+
+// Add method to check if users are friends
+UserSchema.methods.isFriendWith = function(userId) {
+  return this.friends.some(friendId => 
+    friendId.toString() === userId.toString()
+  );
+};
 
 const User = mongoose.models.User || mongoose.model('User', UserSchema);
 export default User;
