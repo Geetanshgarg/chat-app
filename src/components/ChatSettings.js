@@ -31,10 +31,11 @@ export default function ChatSettings({
   chatBackground, 
   onBackgroundChange,
   friendDetails,
-  chatId
+  chatId,
+  currentTheme  // Add this prop
 }) {
   const [currentView, setCurrentView] = useState('main');
-  const [selectedTheme, setSelectedTheme] = useState('default');
+  const [selectedTheme, setSelectedTheme] = useState(currentTheme?.id || 'default');
   const [currentThemeIndex, setCurrentThemeIndex] = useState(0);
   
   const themes = Object.values(chatThemes);
@@ -44,8 +45,8 @@ export default function ChatSettings({
     if (!theme) return;
     
     onBackgroundChange(theme);
+    setSelectedTheme(themeId);
     setCurrentView('main');
-    toast.success(`Theme changed to ${theme.name}`);
   };
 
   const handleSaveTheme = () => {
@@ -170,60 +171,44 @@ export default function ChatSettings({
   );
 
   const renderThemeView = () => (
-    <div className="space-y-6 w-full max-w-full overflow-hidden">
-      <div className="flex items-center justify-between mb-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setCurrentView('main')}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <h3 className="font-semibold">Choose Theme</h3>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 p-2">
-        {themes.map((theme) => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-4">
+        {Object.values(chatThemes).map((theme) => (
           <div
             key={theme.id}
             className={cn(
-              "cursor-pointer rounded-lg border-2 p-2 transition-all",
+              "relative cursor-pointer rounded-lg p-2 transition-all",
+              "border-2",
               selectedTheme === theme.id 
-                ? "border-primary scale-95" 
-                : "border-transparent hover:scale-105"
+                ? "border-primary ring-2 ring-primary ring-offset-2" 
+                : "border-border hover:border-primary/50"
             )}
             onClick={() => handleThemeSelect(theme.id)}
           >
             <div
-              className="h-32 w-full rounded-md p-4 flex flex-col justify-between"
+              className="h-32 w-full rounded-md overflow-hidden"
               style={{
                 background: theme.background,
-                borderImage: theme.borderGradient,
-                borderImageSlice: 1
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
               }}
             >
-              <div className="flex justify-end">
-                <div 
-                  className="h-6 w-20 rounded"
-                  style={{ background: theme.accentColor }}
-                />
-              </div>
-              <div className="flex justify-start">
-                <div 
-                  className="h-6 w-16 rounded"
-                  style={{ background: theme.receivedMessage }}
-                />
+              <div className="h-full w-full p-3 flex flex-col justify-between">
+                <div className={cn(
+                  "w-16 h-8 rounded-md ml-auto",
+                  theme.sentMessage
+                )} />
+                <div className={cn(
+                  "w-16 h-8 rounded-md",
+                  theme.receivedMessage
+                )} />
               </div>
             </div>
             <p className="mt-2 text-sm font-medium text-center">
               {theme.name}
+              {selectedTheme === theme.id && (
+                <Check className="h-4 w-4 absolute top-2 right-2 text-primary" />
+              )}
             </p>
           </div>
         ))}
@@ -233,8 +218,8 @@ export default function ChatSettings({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] md:max-w-[500px] h-[90vh] p-0 overflow-hidden">
-        <DialogHeader className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 border-b">
+      <DialogContent className="max-w-[95vw] md:max-w-[500px] h-[90vh] p-0 overflow-hidden bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <DialogHeader className="sticky top-0 z-50 p-4 border-b">
           <div className="flex items-center justify-between">
             <DialogTitle>
               {currentView === 'main' ? 'Chat Info' : 'Chat Theme'}
@@ -248,13 +233,12 @@ export default function ChatSettings({
             </Button>
           </div>
         </DialogHeader>
-        <div className="h-[calc(90vh-4rem)] overflow-hidden">
-          <ScrollArea className="h-full w-full">
-            <div className="p-4">
-              {currentView === 'main' ? renderMainView() : renderThemeView()}
-            </div>
-          </ScrollArea>
-        </div>
+
+        <ScrollArea className="flex-1 h-[calc(90vh-4rem)]">
+          <div className="p-6">
+            {currentView === 'main' ? renderMainView() : renderThemeView()}
+          </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

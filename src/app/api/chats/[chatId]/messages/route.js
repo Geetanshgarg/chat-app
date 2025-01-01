@@ -80,6 +80,9 @@ export async function POST(request, { params }) {
     chat.lastMessage = message._id;
     await chat.save();
 
+    // Broadcast the new message to all connected clients in this chat
+    global.io?.to(chatId).emit('new-message', message);
+
     return NextResponse.json(message);
   } catch (error) {
     console.error("Error creating message:", error);

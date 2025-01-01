@@ -25,6 +25,16 @@ import { cn } from "@/lib/utils";
 import { chatThemes } from "@/config/chatThemes";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
+// Add this function before the ChatWindow component
+const isNearBottom = () => {
+  const scrollArea = document.querySelector('.scroll-area');
+  if (!scrollArea) return true;
+  
+  const { scrollTop, scrollHeight, clientHeight } = scrollArea;
+  const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+  return distanceFromBottom < 100;
+};
+
 export default function ChatWindow({ chatId, friendInfo }) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -61,7 +71,6 @@ export default function ChatWindow({ chatId, friendInfo }) {
       if (!res.ok) throw new Error("Failed to update theme");
       
       setCurrentTheme(theme);
-      // ...rest of existing theme change logic...
       setChatBackground(theme.background);
     
       const systemMessage = {
@@ -91,8 +100,9 @@ export default function ChatWindow({ chatId, friendInfo }) {
   useEffect(() => {
     if (chatId) {
       fetchMessages();
+      fetchChatTheme(); // Ensure theme is fetched when chatId changes
     }
-  }, [chatId]); // Only fetch messages when chatId changes
+  }, [chatId]);
 
   const fetchChatTheme = async () => {
     try {
@@ -100,6 +110,7 @@ export default function ChatWindow({ chatId, friendInfo }) {
       if (!res.ok) throw new Error("Failed to fetch theme");
       const { theme } = await res.json();
       setCurrentTheme(theme);
+      setChatBackground(theme.background); // Ensure background is set
     } catch (error) {
       console.error("Error fetching chat theme:", error);
     }
@@ -110,18 +121,37 @@ export default function ChatWindow({ chatId, friendInfo }) {
       socket.emit('join-chat', chatId);
 
       socket.on('new-message', (message) => {
-        // Update messages and preserve scroll position
-        setMessages(prev => {
-          const isAtBottom = isNearBottom();
+        setMessages((prev) => {
+          // Check if message already exists to prevent duplicates
+          if (prev.some(m => m._id === message._id)) {
+            return prev;
+          }
           const newMessages = [...prev, message];
-          
-          // Only auto-scroll if we're already at bottom or it's our message
-          if (isAtBottom || message.sender._id === session?.user?.id) {
+          if (isNearBottom()) {
             setTimeout(() => scrollToBottom(), 100);
           }
-          
           return newMessages;
         });
+
+        // Mark message as read immediately if chat is open
+        if (document.hasFocus()) {
+          socket.emit('messages-read', {
+            chatId,
+            userId: session.user.id
+          });
+        }
+      });
+
+      // Update the messages-read handler
+      socket.on('messages-read', ({ userId, chatId: updatedChatId }) => {
+        if (updatedChatId === chatId) {
+          setMessages(prev => prev.map(msg => ({
+            ...msg,
+            readBy: Array.isArray(msg.readBy) 
+              ? [...new Set([...msg.readBy, userId])]
+              : [userId]
+          })));
+        }
       });
 
       socket.on('theme-changed', (data) => {
@@ -143,9 +173,10 @@ export default function ChatWindow({ chatId, friendInfo }) {
       return () => {
         socket.emit('leave-chat', chatId);
         socket.off('new-message');
+        socket.off('messages-read');
       };
     }
-  }, [socket, chatId]);
+  }, [socket, chatId, session?.user?.id]);
 
   useEffect(() => {
     fetchChatBackground();
@@ -269,15 +300,17 @@ export default function ChatWindow({ chatId, friendInfo }) {
   };
 
   const renderMessage = (message, index, messages) => {
+    if (!message || !message.sender) return null; // Add check for undefined message
+
     const isOwnMessage = message.sender._id === session?.user?.id;
     const isFirstInGroup = index === 0 || 
-      messages[index - 1].sender._id !== message.sender._id;
+      messages[index - 1]?.sender?._id !== message.sender._id;
     const isLastInGroup = index === messages.length - 1 || 
-      messages[index + 1].sender._id !== message.sender._id;
+      messages[index + 1]?.sender?._id !== message.sender._id;
 
     return (
       <div
-        key={message._id}
+        key={`msg-${message._id}-${index}`}  // Modified key to be more unique
         className={cn(
           "flex gap-2 px-2",
           isOwnMessage ? "justify-end" : "justify-start",
@@ -322,24 +355,27 @@ export default function ChatWindow({ chatId, friendInfo }) {
           )}
           <div
             className={cn(
-              "rounded-2xl px-3 py-2 break-words",
-              isOwnMessage 
-                ? "bg-primary text-primary-foreground ml-auto" 
-                : "bg-muted/50",
+              "rounded-2xl px-4 py-2 break-words",
+              isOwnMessage ? currentTheme.sentMessage : currentTheme.receivedMessage,
+              currentTheme.bubbleShadow,
+              "transition-all duration-200",
               isFirstInGroup && isOwnMessage && "rounded-tr-sm",
               isFirstInGroup && !isOwnMessage && "rounded-tl-sm",
               !isLastInGroup && isOwnMessage && "rounded-br-sm",
               !isLastInGroup && !isOwnMessage && "rounded-bl-sm"
             )}
           >
-            <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+            <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.text}</p>
           </div>
           {isLastInGroup && (
             <span className="text-[10px] text-muted-foreground mx-1 mt-1">
               {formatMessageTime(message.createdAt)}
               {isOwnMessage && (
                 <span className="ml-1">
-                  {message.readBy?.length > 1 ? "✓✓" : "✓"}
+                  {Array.isArray(message.readBy) && 
+                   message.readBy.some(id => id !== session?.user?.id) 
+                    ? "✓✓" 
+                    : "✓"}
                 </span>
               )}
             </span>
@@ -349,130 +385,166 @@ export default function ChatWindow({ chatId, friendInfo }) {
     );
   };
 
+  // Add this effect to mark messages as read when chat is open
+  useEffect(() => {
+    if (chatId && session?.user?.id) {
+      const markMessagesAsRead = async () => {
+        try {
+          const res = await fetch(`/api/chats/${chatId}/read`, {
+            method: 'POST',
+          });
+          
+          if (res.ok) {
+            socket?.emit('messages-read', {
+              chatId,
+              userId: session.user.id
+            });
+          }
+        } catch (error) {
+          console.error('Error marking messages as read:', error);
+        }
+      };
+
+      // Mark as read when chat is focused
+      const handleFocus = () => markMessagesAsRead();
+      window.addEventListener('focus', handleFocus);
+      
+      // Initial mark as read
+      if (document.hasFocus()) {
+        markMessagesAsRead();
+      }
+
+      // Periodic check for new messages to mark as read
+      const interval = setInterval(() => {
+        if (document.hasFocus()) {
+          markMessagesAsRead();
+        }
+      }, 5000);
+
+      return () => {
+        window.removeEventListener('focus', handleFocus);
+        clearInterval(interval);
+      };
+    }
+  }, [chatId, session?.user?.id, socket]);
+
   if (loading) {
     return <Skeleton className="w-full h-[90vh]" />;
   }
 
   return (
-    <Card 
-      className="h-[90vh] relative border-0 shadow-2xl overflow-hidden"
-      style={{
-        background: currentTheme.containerBg,
-        borderRadius: '1.5rem',
-        padding: '1px',
-        backgroundImage: currentTheme.borderGradient
-      }}
-    >
-      <div className="absolute inset-0.5 rounded-[1.4rem] overflow-hidden bg-background/95">
-        <ChatSettings
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          chatBackground={chatBackground}
-          onBackgroundChange={handleThemeChange}
-          friendDetails={friendDetails}
-        />
-        
-        {/* Updated Header */}
-        <div 
-          onClick={() => setIsSettingsOpen(true)}
-          className="h-16 px-6 flex items-center bg-background/50 backdrop-blur-sm border-b border-border/50 cursor-pointer hover:bg-accent/5 transition-colors"
-        >
-          <div className="flex items-center gap-3 w-full">
-            <Avatar className="h-10 w-10">
-              <AvatarImage 
-                src={friendDetails?.image || "/default-avatar.png"} 
-                alt={friendDetails?.name} 
-              />
-              <AvatarFallback>{friendDetails?.name?.[0]}</AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col">
-              <h2 className="text-sm font-semibold">{friendDetails?.name}</h2>
-              <div className="flex items-center gap-2">
-                <span 
-                  className={cn(
-                    "h-2 w-2 rounded-full",
-                    isOnline ? "bg-green-500" : "bg-gray-400"
-                  )}
-                />
-                <span className="text-xs text-muted-foreground">
-                  {isOnline ? "Online" : "Offline"}
-                </span>
-              </div>
-            </div>
+    <Card className="h-[90vh] relative border-none rounded-3xl overflow-hidden shadow-2xl">
+      {/* Add the ChatSettings component back */}
+      <ChatSettings
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        chatBackground={chatBackground}
+        onBackgroundChange={handleThemeChange}
+        friendDetails={friendDetails}
+        chatId={chatId}
+        currentTheme={currentTheme}  // Add this prop
+      />
+      
+      {/* Header */}
+      <div className="h-14 px-4 flex items-center justify-between bg-background/50 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-8 w-8">
+            <AvatarImage 
+              src={friendDetails?.image || "/default-avatar.png"} 
+              alt={friendDetails?.name} 
+            />
+            <AvatarFallback>{friendDetails?.name?.[0]}</AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col">
+            <h2 className="text-sm font-medium leading-none">{friendDetails?.name}</h2>
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
+              <span className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                isOnline ? "bg-green-500" : "bg-gray-400"
+              )}/>
+              {isOnline ? "Online" : "Offline"}
+            </span>
           </div>
         </div>
-
-        {/* Messages Area */}
-        <div
-          className="p-0 h-[calc(90vh-9rem)]"
-          style={{
-            background: currentTheme.background,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-full"
+          onClick={() => setIsSettingsOpen(true)}
         >
-          <ScrollArea 
-            ref={scrollAreaRef}
-            className="h-full scroll-area"
-            onWheel={handleScroll}  // Add wheel event
-            onScroll={handleScroll} // Keep existing scroll event
-          >
-            <div 
-              className="flex flex-col p-6 gap-y-2 min-h-full"
-              onScroll={handleScroll} // Add scroll event to inner container
-            >
-              {[...messages, ...systemMessages]
-                .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
-                .map((message, index, array) => {
-                  if (message.type === 'system') {
-                    return (
-                      <div key={message._id} className="flex justify-center">
-                        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-background/40 backdrop-blur-sm text-xs text-muted-foreground">
-                          <AlertCircle className="h-3 w-3" />
-                          {message.text}
-                        </div>
+          <Settings className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Messages Area */}
+      <div 
+        className="h-[calc(90vh-8rem)] relative overflow-hidden"
+        style={{
+          backgroundImage: currentTheme.background,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundAttachment: 'fixed'
+        }}
+      >
+        {/* Theme overlay */}
+        <div 
+          className="absolute inset-0 z-0"
+          style={{ backgroundColor: 'var(--theme-overlay)' }}
+        />
+
+        <ScrollArea 
+          ref={scrollAreaRef}
+          className="h-full scroll-area px-4 relative z-10"
+          onScroll={handleScroll}
+        >
+          <div className="flex flex-col gap-2 py-4">
+            {[...messages, ...systemMessages]
+              .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+              .map((message, index, array) => {
+                if (message.type === 'system') {
+                  return (
+                    <div key={`system-${message._id || Date.now()}-${index}`} className="flex justify-center">
+                      <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-background/40 backdrop-blur-sm text-xs text-muted-foreground">
+                        <AlertCircle className="h-3 w-3" />
+                        {message.text}
                       </div>
-                    );
-                  }
-                  return renderMessage(message, index, array);
-                })}
-            </div>
-          </ScrollArea>
+                    </div>
+                  );
+                }
+                return renderMessage(message, index, array);
+              })}
+          </div>
+        </ScrollArea>
+      </div>
 
-          {/* Scroll to bottom button */}
-          <Button
-            variant="secondary"
-            size="icon"
+      {/* Input Area with themed border */}
+      <div 
+        className="absolute bottom-0 left-0 right-0 p-4"
+        style={{
+          background: 'var(--theme-input-bg)',
+          backdropFilter: 'blur(10px)',
+          borderTop: '1px solid var(--theme-border)'
+        }}
+      >
+        <form onSubmit={sendMessage} className="flex gap-2">
+          <Input
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Message..."
+            className="flex-1 bg-background/40 border-none h-10 px-4 focus-visible:ring-1 focus-visible:ring-offset-0"
+          />
+          <Button 
+            type="submit"
+            size="sm"
             className={cn(
-              "fixed bottom-20 right-8 rounded-full transition-all duration-200 shadow-lg z-10",
-              showScrollButton ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
+              "rounded-full px-4",
+              currentTheme.buttonColor,
+              "transition-all duration-200"
             )}
-            onClick={() => {
-              scrollToBottom();
-              setIsAutoScroll(true);
-            }}
           >
-            <ChevronDown className="h-4 w-4" />
+            Send
           </Button>
-        </div>
-
-        {/* Message Input */}
-        <div className="absolute bottom-0 w-full p-4 bg-background/50 backdrop-blur-sm border-t border-border/50">
-          <form onSubmit={sendMessage} className="flex gap-2">
-            <Input
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Type a message..."
-              className="flex-1 bg-background/50 border-0 focus-visible:ring-1 focus-visible:ring-accent"
-            />
-            <Button 
-              type="submit"
-              className="bg-primary hover:bg-primary/90"
-            >
-              Send
-            </Button>
-          </form>
-        </div>
+        </form>
       </div>
     </Card>
   );

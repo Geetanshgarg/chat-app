@@ -37,6 +37,9 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --theme-overlay: rgba(255, 255, 255, 0.05);
+    --theme-input-bg: rgba(255, 255, 255, 0.08);
+    --theme-border: rgba(255, 255, 255, 0.1);
   }
  
   .dark {
@@ -72,6 +75,9 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --theme-overlay: rgba(0, 0, 0, 0.2);
+    --theme-input-bg: rgba(0, 0, 0, 0.3);
+    --theme-border: rgba(255, 255, 255, 0.1);
   }
 }
  
@@ -181,6 +187,15 @@
 
   .animate-slide-in-right {
     animation: slide-in-right 0.3s ease-out;
+  }
+
+  .theme-blur {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .message-shadow {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 }
 
