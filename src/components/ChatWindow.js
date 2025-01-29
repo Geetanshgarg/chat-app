@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useTheme } from "next-themes"; // Add this import
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,8 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import ChatSettings from "./ChatSettings";
 import ChatInput from "./ChatInput";
+import VoiceMessage from './VoiceMessage';
+import { Spinner } from "@/components/ui/spinner";
 
 export default function ChatWindow({ chatId, friendInfo }) {
   const { data: session } = useSession();
@@ -26,6 +28,8 @@ export default function ChatWindow({ chatId, friendInfo }) {
   const scrollAreaRef = useRef(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const { theme } = useTheme();
+  const [loading, setLoading] = useState(true);
+  const scrollRef = useRef(null);
 
   // Socket connection
   useEffect(() => {
@@ -61,21 +65,31 @@ export default function ChatWindow({ chatId, friendInfo }) {
     }
   }, [socket, chatId]);
 
-  // Initial messages fetch
+  // Fetch messages
   useEffect(() => {
     const fetchMessages = async () => {
       try {
+        setLoading(true);
+        console.log('Fetching messages for chatId:', chatId); // Debug log
+
         const res = await fetch(`/api/chats/${chatId}/messages`);
         if (!res.ok) throw new Error('Failed to fetch messages');
+        
         const data = await res.json();
+        console.log('Fetched messages:', data); // Debug log
+        
         setMessages(data);
-        scrollToBottom();
       } catch (error) {
+        console.error('Error fetching messages:', error);
         toast.error('Failed to load messages');
+      } finally {
+        setLoading(false);
       }
     };
 
-    if (chatId) fetchMessages();
+    if (chatId) {
+      fetchMessages();
+    }
   }, [chatId]);
 
   const scrollToBottom = () => {
@@ -89,24 +103,32 @@ export default function ChatWindow({ chatId, friendInfo }) {
     setShowScrollButton(!isNearBottom);
   };
 
-  const handleSendMessage = async (content) => {
+  const handleSendMessage = async (content, type = 'text', duration = null) => {
     try {
+      console.log('Sending message:', { content, type, duration }); // Debug log
+
       const res = await fetch(`/api/chats/${chatId}/messages`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content,
+          type,
+          duration
+        }),
       });
-      
+
       if (!res.ok) throw new Error('Failed to send message');
-      
-      // Add this: Get the new message from response and update local state
+
       const newMessage = await res.json();
+      console.log('New message:', newMessage); // Debug log
+      
       setMessages(prev => [...prev, newMessage]);
-      
-      // Scroll to bottom after adding new message
-      setTimeout(scrollToBottom, 100);
-      
+      scrollToBottom();
+
     } catch (error) {
+      console.error('Error sending message:', error);
       toast.error('Failed to send message');
     }
   };
@@ -143,6 +165,11 @@ export default function ChatWindow({ chatId, friendInfo }) {
       : "url('/backgrounds/light-pattern.png')";
   };
 
+  // Group messages
+  const groupedMessages = useMemo(() => {
+    return groupMessages(messages);
+  }, [messages]);
+
   return (
     <Card className="flex flex-col h-[calc(100vh-4rem)] bg-background relative">
       {/* Header */}
@@ -178,67 +205,109 @@ export default function ChatWindow({ chatId, friendInfo }) {
         }}
         onScroll={handleScroll}
       >
-        <div className="space-y-3">
-          {groupMessages(messages).map((group, groupIndex) => (
-            <div
-              key={group.messages[0]._id}
-              className={cn(
-                "flex items-end gap-2",
-                group.isOwn ? "justify-end" : "justify-start"
-              )}
-            >
-              {!group.isOwn && (
-                <div className="flex flex-col items-center gap-1 w-8 shrink-0">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={group.sender.image} />
-                    <AvatarFallback>{group.sender.firstName?.[0]}</AvatarFallback>
-                  </Avatar>
-                </div>
-              )}
-              
-              <div className="flex flex-col gap-0.5 max-w-[65%]">
-                {!group.isOwn && groupIndex === 0 && (
-                  <span className="text-xs text-muted-foreground ml-1 mb-1">
-                    {group.sender.firstName}
-                  </span>
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <Spinner />
+          </div>
+        ) : (
+          <div className="space-y-4" ref={scrollRef}>
+            {groupedMessages.map((group, groupIndex) => (
+              <div
+                key={group.messages[0]._id}
+                className={cn(
+                  "flex gap-3",
+                  group.isOwn ? "justify-end" : "justify-start"
                 )}
-                {group.messages.map((message, messageIndex) => (
-                  <div 
-                    key={message._id} 
-                    className={cn(
-                      "flex flex-col",
-                      messageIndex === group.messages.length - 1 ? "mb-1" : "mb-0.5"
+              >
+                {/* Avatar for received messages */}
+                {!group.isOwn && (
+                  <div className="relative">
+                    <Avatar className="h-8 w-8 ring-2 ring-background">
+                      <AvatarImage src={group.sender.image} />
+                      <AvatarFallback>{group.sender.firstName?.[0]}</AvatarFallback>
+                    </Avatar>
+                    {group.sender.isOnline && (
+                      <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-green-500 ring-2 ring-background" />
                     )}
-                  >
-                    <div className={cn(
-                      "px-4 py-2 rounded-2xl",
-                      group.isOwn
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted",
-                      messageIndex === 0 && "rounded-tl-sm rounded-tr-2xl",
-                      messageIndex === group.messages.length - 1 && "rounded-bl-2xl rounded-br-2xl",
-                      messageIndex !== 0 && messageIndex !== group.messages.length - 1 && "rounded-2xl"
-                    )}>
-                      {message.text}
-                    </div>
                   </div>
-                ))}
-                <span className="text-[10px] text-muted-foreground px-2">
-                  {formatMessageTime(group.messages[group.messages.length - 1].createdAt)}
-                </span>
-              </div>
+                )}
+                
+                <div className={cn(
+                  "flex flex-col space-y-2 w-fit max-w-[75%]",
+                  group.isOwn && "items-end"
+                )}>
+                  {!group.isOwn && groupIndex === 0 && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm font-semibold text-foreground/70">
+                        {group.sender.firstName}
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="flex flex-col space-y-1">
+                    {group.messages.map((message, messageIndex) => (
+                      <div 
+                        key={message._id} 
+                        className={cn(
+                          "flex items-start gap-2.5",
+                          group.isOwn && "justify-end"
+                        )}
+                      >
+                        <div className={cn(
+                          "flex flex-col w-full max-w-[320px] leading-1.5 p-4",
+                          group.isOwn ? [
+                            "bg-primary text-primary-foreground rounded-s-xl rounded-ee-xl",
+                          ] : [
+                            "bg-muted rounded-e-xl rounded-es-xl",
+                          ]
+                        )}>
+                          {!group.isOwn && (
+                            <span className="text-sm font-semibold">
+                              {group.sender.firstName}
+                            </span>
+                          )}
 
-              {group.isOwn && (
-                <div className="flex flex-col items-center gap-1 w-8 shrink-0">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={session.user.image} />
-                    <AvatarFallback>{session.user.name?.[0]}</AvatarFallback>
-                  </Avatar>
+                          {/* Check if the message content is a voice message URL */}
+                          {message.content?.startsWith('https://') && message.content?.includes('voice-messages') ? (
+                            <VoiceMessage 
+                              url={message.content}
+                              duration={message.duration || 0}
+                              isOwn={group.isOwn}
+                            />
+                          ) : (
+                            <p className="text-sm font-normal py-2.5">
+                              {message.content}
+                            </p>
+                          )}
+
+                          <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                            <span className="text-sm font-normal text-muted-foreground">
+                              {formatMessageTime(message.createdAt)}
+                            </span>
+                            <span className="text-sm font-normal text-muted-foreground">
+                              {message.readBy?.length > 0 ? "Read" : "Delivered"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Avatar for sent messages */}
+                        {group.isOwn && (
+                          <div className="relative">
+                            <Avatar className="h-8 w-8 ring-2 ring-background">
+                              <AvatarImage src={session.user.image} />
+                              <AvatarFallback>{session.user.name?.[0]}</AvatarFallback>
+                            </Avatar>
+                            <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-green-500 ring-2 ring-background" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
       </ScrollArea>
 
       {/* Add scroll to bottom button */}

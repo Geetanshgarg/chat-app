@@ -3,8 +3,21 @@ import mongoose from 'mongoose';
 const messageSchema = new mongoose.Schema({
   text: {
     type: String,
-    required: true,
-    trim: true
+    trim: true,
+    default: null
+  },
+  audioUrl: {
+    type: String,
+    default: null
+  },
+  messageType: {
+    type: String,
+    enum: ['text', 'voice'],
+    required: true
+  },
+  duration: {
+    type: Number,
+    default: null
   },
   conversation: {
     type: mongoose.Schema.Types.ObjectId,
@@ -20,11 +33,6 @@ const messageSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
-  messageType: {
-    type: String,
-    enum: ['text', 'image', 'file'],
-    default: 'text'
-  },
   seenAt: {
     type: Map,
     of: Date,

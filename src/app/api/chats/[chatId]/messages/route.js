@@ -1,91 +1,96 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import DbConnect from "@/lib/dbcon";
-import Chat from "@/models/Chat";
 import Message from "@/models/Message";
-import { NextResponse } from "next/server";
-import ChatNotification from '@/models/ChatNotification'; // Import ChatNotification model
+import DbConnect from "@/lib/dbcon";
 
 export async function GET(req, { params }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     await DbConnect();
     const { chatId } = params;
+    
+    const messages = await Message.find({ conversation: chatId })
+      .populate('sender', 'firstName image')
+      .sort({ createdAt: 1 })
+      .lean();
 
-    const chat = await Chat.findById(chatId);
-    if (!chat) {
-      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
-    }
-
-    // Add timestamp query parameter for pagination/lazy loading if needed
-    const messages = await Message.find({ 
-      conversation: chatId 
-    })
-    .populate("sender", "firstName lastName image _id username")
-    .sort({ createdAt: 1 })
-    .limit(50); // Limit initial load
-
-    // Mark messages as read in background
-    Message.updateMany(
-      {
-        conversation: chatId,
-        sender: { $ne: session.user.id },
-        readBy: { $ne: session.user.id }
+    const transformedMessages = messages.map(message => ({
+      _id: message._id.toString(),
+      content: message.messageType === 'voice' 
+        ? message.audioUrl // Make sure this is the full public URL
+        : message.text,
+      messageType: message.messageType,
+      duration: message.duration || 0, // Add default duration
+      createdAt: message.createdAt,
+      sender: {
+        _id: message.sender._id.toString(),
+        firstName: message.sender.firstName || '',
+        image: message.sender.image || ''
       },
-      { $addToSet: { readBy: session.user.id } }
-    ).then(() => {
-      global.io?.to(chatId).emit('messages-read', { 
-        userId: session.user.id,
-        chatId 
-      });
-    });
+      readBy: message.readBy?.map(id => id.toString()) || []
+    }));
 
-    return NextResponse.json(messages);
+    return Response.json(transformedMessages);
+    
   } catch (error) {
-    console.error("Error fetching messages:", error);
-    return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 });
+    console.error('Error in GET messages:', error);
+    return Response.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-export async function POST(request, { params }) {
+export async function POST(req, { params }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     await DbConnect();
     const { chatId } = params;
-    const { content } = await request.json();
+    const body = await req.json();
 
-    const chat = await Chat.findById(chatId);
-    if (!chat) {
-      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
-    }
-
-    const message = await Message.create({
-      text: content.trim(),
+    const messageData = {
       conversation: chatId,
       sender: session.user.id,
+      messageType: body.type || 'text',
       readBy: [session.user.id]
-    });
+    };
 
-    await message.populate("sender", "firstName lastName image username");
+    if (body.type === 'voice') {
+      messageData.audioUrl = body.content; // This should be the full public URL
+      messageData.duration = body.duration || 0;
+    } else {
+      messageData.text = body.content;
+    }
 
-    // Update chat's last message
-    chat.lastMessage = message._id;
-    await chat.save();
+    const newMessage = await Message.create(messageData);
+    const populatedMessage = await Message.findById(newMessage._id)
+      .populate('sender', 'firstName image')
+      .lean();
 
-    // Broadcast the new message to all connected clients in this chat
-    global.io?.to(chatId).emit('new-message', message);
+    const transformedMessage = {
+      _id: populatedMessage._id.toString(),
+      content: populatedMessage.messageType === 'voice' 
+        ? populatedMessage.audioUrl 
+        : populatedMessage.text,
+      messageType: populatedMessage.messageType,
+      duration: populatedMessage.duration || 0,
+      createdAt: populatedMessage.createdAt,
+      sender: {
+        _id: populatedMessage.sender._id.toString(),
+        firstName: populatedMessage.sender.firstName || '',
+        image: populatedMessage.sender.image || ''
+      },
+      readBy: [session.user.id]
+    };
 
-    return NextResponse.json(message);
+    return Response.json(transformedMessage);
   } catch (error) {
-    console.error("Error creating message:", error);
-    return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
+    console.error('Error in POST message:', error);
+    return Response.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
