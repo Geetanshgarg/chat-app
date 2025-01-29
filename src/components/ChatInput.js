@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Send, Paperclip, Image as ImageIcon, Mic, Square } from "lucide-react";
+import { Send, Mic, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -34,7 +34,6 @@ export default function ChatInput({ onSend, disabled }) {
         formData.append('audio', audioBlob, 'voice-message.wav');
 
         try {
-          // Upload the voice message
           const uploadRes = await fetch('/api/messages/voice', {
             method: 'POST',
             body: formData
@@ -43,15 +42,15 @@ export default function ChatInput({ onSend, disabled }) {
           if (!uploadRes.ok) throw new Error('Failed to upload voice message');
           
           const { url } = await uploadRes.json();
-          
-          // Send the message with the voice URL
           onSend(url, 'voice', duration);
+          
+          // Reset recording state
+          setRecordingDuration(0);
+          setIsRecording(false);
         } catch (error) {
           console.error('Error uploading voice message:', error);
           toast.error('Failed to send voice message');
         }
-
-        setRecordingDuration(0);
       };
 
       mediaRecorderRef.current.start();
@@ -73,22 +72,15 @@ export default function ChatInput({ onSend, disabled }) {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
       clearInterval(durationTimerRef.current);
-      setIsRecording(false);
     }
-  };
-
-  const formatDuration = (duration) => {
-    const minutes = Math.floor(duration / 60);
-    const seconds = Math.floor(duration % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!message.trim()) return;
-    
-    onSend(message, 'text');
-    setMessage("");
+    if (message.trim()) {
+      onSend(message.trim(), 'text');
+      setMessage("");
+    }
   };
 
   const handleKeyPress = (e) => {
@@ -99,25 +91,8 @@ export default function ChatInput({ onSend, disabled }) {
   };
 
   return (
-    <div className="p-4 border-t bg-background">
+    <div className="p-4 border-t">
       <form onSubmit={handleSubmit} className="flex items-center gap-2">
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="shrink-0"
-        >
-          <Paperclip className="h-5 w-5" />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="shrink-0"
-        >
-          <ImageIcon className="h-5 w-5" />
-        </Button>
-        
         {!isRecording ? (
           <>
             <div className="flex-1 relative">
@@ -148,12 +123,26 @@ export default function ChatInput({ onSend, disabled }) {
         ) : (
           <>
             <div className="flex-1 flex items-center gap-4 bg-accent/10 rounded-md px-4 py-2">
-              <div className="animate-pulse">
-                <Mic className="h-5 w-5 text-red-500" />
+              {/* Recording indicator */}
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-sm font-medium">
+                  Recording {recordingDuration.toFixed(1)}s
+                </span>
               </div>
-              <span className="text-sm font-medium">
-                {formatDuration(recordingDuration)}
-              </span>
+              {/* Simple recording visualization */}
+              <div className="flex-1 flex items-center gap-1">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="w-1 bg-foreground/60 rounded-full animate-pulse"
+                    style={{
+                      height: `${Math.random() * 16 + 4}px`,
+                      animationDelay: `${i * 0.1}s`
+                    }}
+                  />
+                ))}
+              </div>
             </div>
             <Button 
               type="button"

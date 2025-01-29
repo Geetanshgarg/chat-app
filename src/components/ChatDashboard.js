@@ -216,15 +216,56 @@ export default function ChatDashboard() {
 
   const getLastMessagePreview = (chat) => {
     if (!chat?.lastMessage) return 'No messages yet';
-    return chat.lastMessage.text || 'No message content';
+    
+    // Handle different message types
+    switch (chat.lastMessage.type) {
+      case 'voice':
+        return '🎤 Voice message';
+      case 'text':
+        return chat.lastMessage.text || 'No message content';
+      case 'image':
+        return '📷 Photo';
+      default:
+        return chat.lastMessage.text || 'No message content';
+    }
   };
 
   const getLastMessageTime = (chat) => {
     if (!chat?.lastMessage?.createdAt) return '';
-    return new Date(chat.lastMessage.createdAt).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
+    const date = new Date(chat.lastMessage.createdAt);
+    
+    // If message is from today, show time only
+    if (isToday(date)) {
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+    
+    // If message is from this week, show day name
+    if (isThisWeek(date)) {
+      return date.toLocaleDateString('en-US', { weekday: 'short' });
+    }
+    
+    // Otherwise show date
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
     });
+  };
+
+  // Helper functions for date checking
+  const isToday = (date) => {
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear();
+  };
+
+  const isThisWeek = (date) => {
+    const today = new Date();
+    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return date > weekAgo;
   };
 
   const refreshUnreadCounts = async () => {
@@ -368,7 +409,10 @@ export default function ChatDashboard() {
                                 ? chat.name 
                                 : `${otherParticipant?.firstName} ${otherParticipant?.lastName}`}
                             </span>
-                            <span className="text-sm text-muted-foreground">
+                            <span className="text-sm text-muted-foreground flex items-center gap-1">
+                              {chat.lastMessage?.type === 'voice' && (
+                                <span className="inline-block w-3 h-3">🎤</span>
+                              )}
                               {lastMessage}
                             </span>
                           </div>
