@@ -29,9 +29,9 @@ export default function ChatInput({ onSend, disabled }) {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         const duration = Math.round(recordingDuration);
         
-        // Create FormData and append the audio blob
         const formData = new FormData();
         formData.append('audio', audioBlob, 'voice-message.wav');
+        formData.append('duration', duration);
 
         try {
           const uploadRes = await fetch('/api/messages/voice', {
@@ -42,6 +42,7 @@ export default function ChatInput({ onSend, disabled }) {
           if (!uploadRes.ok) throw new Error('Failed to upload voice message');
           
           const { url } = await uploadRes.json();
+          
           onSend(url, 'voice', duration);
           
           // Reset recording state
@@ -62,8 +63,8 @@ export default function ChatInput({ onSend, disabled }) {
       }, 100);
 
     } catch (error) {
-      console.error('Error accessing microphone:', error);
-      toast.error('Could not access microphone');
+      console.error('Error starting recording:', error);
+      toast.error('Failed to start recording');
     }
   };
 
@@ -91,7 +92,7 @@ export default function ChatInput({ onSend, disabled }) {
   };
 
   return (
-    <div className="p-4 border-t">
+    <div className="p-2 sm:p-4 border-t">
       <form onSubmit={handleSubmit} className="flex items-center gap-2">
         {!isRecording ? (
           <>
@@ -103,7 +104,7 @@ export default function ChatInput({ onSend, disabled }) {
                 placeholder="Type a message..."
                 disabled={disabled || isRecording}
                 className={cn(
-                  "min-h-10 py-5 px-4",
+                  "min-h-10 py-3 sm:py-5 px-2 sm:px-4",
                   "focus-visible:ring-1 focus-visible:ring-offset-0",
                   "transition-all duration-200"
                 )}
@@ -113,7 +114,7 @@ export default function ChatInput({ onSend, disabled }) {
               type="button"
               size="icon"
               variant="ghost"
-              className="shrink-0"
+              className="shrink-0 hidden sm:flex"
               onClick={startRecording}
               disabled={disabled}
             >
@@ -122,7 +123,7 @@ export default function ChatInput({ onSend, disabled }) {
           </>
         ) : (
           <>
-            <div className="flex-1 flex items-center gap-4 bg-accent/10 rounded-md px-4 py-2">
+            <div className="flex-1 flex items-center gap-2 sm:gap-4 bg-accent/10 rounded-md px-2 sm:px-4 py-2">
               {/* Recording indicator */}
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />

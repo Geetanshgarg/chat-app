@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
-import { Settings, ChevronDown } from "lucide-react"; // Add ChevronDown import
+import { Settings, ChevronDown, ChevronLeft } from "lucide-react"; // Add ChevronDown and ChevronLeft import
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { io } from 'socket.io-client';
 import { cn } from "@/lib/utils";
@@ -173,21 +173,32 @@ export default function ChatWindow({ chatId, friendInfo }) {
   return (
     <Card className="flex flex-col h-[calc(100vh-4rem)] bg-background relative">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b shrink-0">
-        <div className="flex items-center gap-3">
-          <Avatar>
-            <AvatarImage src={friendInfo?.image} />
-            <AvatarFallback>{friendInfo?.name?.[0]}</AvatarFallback>
-          </Avatar>
-          <div>
-            <h2 className="text-sm font-medium">{friendInfo?.name}</h2>
-            <p className="text-xs text-muted-foreground">Online</p>
+      <div className="flex items-center p-4 border-b shrink-0">
+        <div className="flex-1 flex items-center gap-3">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => window.history.back()}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Avatar>
+              <AvatarImage src={friendInfo?.image} />
+              <AvatarFallback>{friendInfo?.name?.[0]}</AvatarFallback>
+            </Avatar>
+            <div className="overflow-hidden">
+              <h2 className="text-sm font-medium truncate">{friendInfo?.name}</h2>
+              
+            </div>
           </div>
         </div>
         <Button 
           variant="ghost" 
           size="icon"
           onClick={() => setIsSettingsOpen(true)}
+          className="shrink-0"
         >
           <Settings className="h-4 w-4" />
         </Button>
@@ -196,7 +207,7 @@ export default function ChatWindow({ chatId, friendInfo }) {
       {/* Messages Area */}
       <ScrollArea 
         ref={scrollAreaRef}
-        className="flex-1 p-4 overflow-y-auto relative"
+        className="flex-1 p-2 sm:p-4 overflow-y-auto relative"
         style={{ 
           height: 'calc(100vh - 12rem)',
           backgroundImage: getBackground(),
@@ -233,7 +244,8 @@ export default function ChatWindow({ chatId, friendInfo }) {
                 )}
                 
                 <div className={cn(
-                  "flex flex-col space-y-2 w-fit max-w-[75%]",
+                  "flex flex-col space-y-2 w-fit",
+                  "max-w-[85%] sm:max-w-[75%]",
                   group.isOwn && "items-end"
                 )}>
                   {!group.isOwn && groupIndex === 0 && (
@@ -254,7 +266,9 @@ export default function ChatWindow({ chatId, friendInfo }) {
                         )}
                       >
                         <div className={cn(
-                          "flex flex-col w-full max-w-[320px] leading-1.5 p-4",
+                          "flex flex-col w-full",
+                          "max-w-[280px] sm:max-w-[320px]",
+                          "leading-1.5 p-2 sm:p-4",
                           group.isOwn ? [
                             "bg-primary text-primary-foreground rounded-s-xl rounded-ee-xl",
                           ] : [

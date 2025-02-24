@@ -92,6 +92,7 @@
     @apply bg-background text-foreground overscroll-none;
     font-synthesis-weight: none;
     text-rendering: optimizeLegibility;
+    
   }
 
   @supports (font: -apple-system-body) and (-webkit-appearance: none) {

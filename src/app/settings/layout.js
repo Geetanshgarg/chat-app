@@ -41,7 +41,7 @@ export default function SettingsLayout({ children }) {
 
   return (
     <Sidebaruse>
-      <MainNavbar/>
+      
     <div className="hidden space-y-6 p-10 pb-16 md:block">
       <div className="flex flex-row gap-3 items-center">
 

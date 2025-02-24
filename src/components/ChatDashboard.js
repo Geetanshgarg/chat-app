@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import CommandBox from './CommandBox';
 import NewChatDialog from "./NewChatDialog";
+import { ChevronLeft } from "lucide-react";
 
 export default function ChatDashboard() {
   const { data: session, status } = useSession();
@@ -360,8 +361,8 @@ export default function ChatDashboard() {
   }
 
   return (
-    <div className="flex space-x-4 h-[calc(100vh-5rem)] p-4">
-      <div className="w-1/3">
+    <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 h-[calc(100vh-5rem)] p-4">
+      <div className={`w-full md:w-1/3 ${selectedChat ? 'hidden md:block' : ''}`}>
         <Card className="h-[90vh] shadow-lg border-0 bg-card/50 backdrop-blur-sm">
           <CardHeader className="flex flex-row items-center justify-between border-b">
             <CardTitle className="text-lg font-medium">Messages</CardTitle>
@@ -444,9 +445,9 @@ export default function ChatDashboard() {
         </Card>
       </div>
 
-      <div className="w-2/3">
+      <div className={`w-full md:w-2/3 ${!selectedChat ? 'hidden md:block' : ''}`}>
         {selectedChat ? (
-          <div className="rounded-lg overflow-hidden shadow-lg">
+          <div className="rounded-lg overflow-hidden shadow-lg relative">
             <ChatWindow 
               chatId={selectedChat._id} 
               friendInfo={selectedChat.friendInfo}

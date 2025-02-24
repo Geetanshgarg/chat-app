@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import Message from "@/models/Message";
 import DbConnect from "@/lib/dbcon";
+import Chat from "@/models/Chat";
 
 export async function GET(req, { params }) {
   try {
@@ -57,17 +58,25 @@ export async function POST(req, { params }) {
       conversation: chatId,
       sender: session.user.id,
       messageType: body.type || 'text',
-      readBy: [session.user.id]
+      readBy: [session.user.id] // Only sender has read it initially
     };
 
     if (body.type === 'voice') {
-      messageData.audioUrl = body.content; // This should be the full public URL
+      messageData.audioUrl = body.content;
       messageData.duration = body.duration || 0;
     } else {
       messageData.text = body.content;
     }
 
+    // Create new message
     const newMessage = await Message.create(messageData);
+
+    // Update chat's lastMessage and add to messages array
+    await Chat.findByIdAndUpdate(chatId, {
+      $push: { messages: newMessage._id },
+      $set: { lastMessage: newMessage._id }
+    });
+
     const populatedMessage = await Message.findById(newMessage._id)
       .populate('sender', 'firstName image')
       .lean();
